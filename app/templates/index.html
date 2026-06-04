@@ -109,6 +109,8 @@
                 if (result.status === 'success') {
                     btn.innerText = 'OK';
                     btn.style.backgroundColor = '#2ecc71';
+                    btn.disabled = false; // Keep it enabled in case they want to re-test, but it stays green
+                    return; // Return early to prevent the reset in finally
                 } else {
                     btn.innerText = 'FAIL';
                     btn.style.backgroundColor = '#e74c3c';
@@ -119,11 +121,13 @@
                 btn.innerText = 'ERR';
                 btn.style.backgroundColor = '#e74c3c';
             } finally {
-                setTimeout(() => {
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                    btn.style.backgroundColor = '';
-                }, 3000);
+                if (btn.innerText !== 'OK') {
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                        btn.style.backgroundColor = '';
+                    }, 3000);
+                }
             }
         }
 
