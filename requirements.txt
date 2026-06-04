@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+jinja2
+requests
+pyyaml
+google-auth
+litellm
+python-multipart
+pytest
+httpx
