@@ -33,7 +33,9 @@ def get_openrouter_models() -> List[Dict]:
                 "name": m["name"],
                 "pricing": {
                     "prompt": float(m.get("pricing", {}).get("prompt", 0)),
-                    "completion": float(m.get("pricing", {}).get("completion", 0))
+                    "completion": float(m.get("pricing", {}).get("completion", 0)),
+                    "prompt_1m": float(m.get("pricing", {}).get("prompt", 0)) * 1_000_000,
+                    "completion_1m": float(m.get("pricing", {}).get("completion", 0)) * 1_000_000
                 },
                 "context_length": m.get("context_length", 0)
             })
@@ -99,14 +101,16 @@ def get_vertex_models() -> List[Dict]:
                         }
                     
                     # Update pricing if Input/Output is found
-                    pricing = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
-                    rate = pricing.get("tieredRates", [{}])[0].get("unitPrice", {})
+                    pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
+                    rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
                     price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
                     
                     if "Input" in desc:
                         models_data[short_id]["pricing"]["prompt"] = price_usd
+                        models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
                     elif "Output" in desc:
                         models_data[short_id]["pricing"]["completion"] = price_usd
+                        models_data[short_id]["pricing"]["completion_1m"] = price_usd * 1_000_000
 
         return sorted(list(models_data.values()), key=lambda x: x["name"])
     except Exception as e:

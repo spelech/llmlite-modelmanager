@@ -44,8 +44,8 @@
                         <div class="model-info">
                             <div class="model-name">{{ m.name }}</div>
                             <div class="model-id">{{ m.id }}</div>
-                            <div class="model-pricing">
-                                ${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }}
+                            <div class="model-pricing" title="${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }} per token">
+                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }} <small>(per 1M tokens)</small>
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -64,8 +64,8 @@
                         <div class="model-info">
                             <div class="model-name">{{ m.name }}</div>
                             <div class="model-id">{{ m.id }}</div>
-                            <div class="model-pricing">
-                                ${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }}
+                            <div class="model-pricing" title="${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }} per token">
+                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }} <small>(per 1M tokens)</small>
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
