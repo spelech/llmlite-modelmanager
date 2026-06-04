@@ -96,7 +96,12 @@ def get_vertex_models() -> List[Dict]:
                         models_data[short_id] = {
                             "id": f"vertex_ai/{short_id}",
                             "name": model_name,
-                            "pricing": {"prompt": 0.0, "completion": 0.0},
+                            "pricing": {
+                                "prompt": 0.0, 
+                                "completion": 0.0,
+                                "prompt_1m": 0.0,
+                                "completion_1m": 0.0
+                            },
                             "context_length": "Variable"
                         }
                     
