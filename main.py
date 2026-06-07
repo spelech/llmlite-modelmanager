@@ -131,12 +131,14 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch exact list of available models from Vertex AI Publisher API."""
-    url = f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
+    # Handle global vs regional base URL correctly
+    base_url = f"https://{loc}-aiplatform.googleapis.com/v1" if loc != "global" else "https://aiplatform.googleapis.com/v1"
+    url = f"{base_url}/projects/{proj}/locations/{loc}/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
-            print(f"Publisher API error: {resp.text}")
+            print(f"Publisher API error ({resp.status_code}) for {loc}")
             # Fallback to global if regional fails
             if loc != "global":
                 url_global = f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models"
@@ -147,14 +149,13 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
                 return []
         
         models = resp.json().get("models", [])
-        # Extract the base model names (e.g. 'gemini-1.5-pro-001')
         available_ids = []
         for m in models:
             name_path = m.get("name", "")
-            if "gemini" in name_path.lower():
-                # Extract the last part of the path publishers/google/models/gemini-1.5-pro
-                model_id = name_path.split("/")[-1]
-                available_ids.append(model_id)
+            if "/models/" in name_path:
+                model_id = name_path.split("/models/")[-1]
+                if "gemini" in model_id.lower():
+                    available_ids.append(model_id)
         return available_ids
     except Exception as e:
         print(f"Error fetching publisher models: {e}")
@@ -169,6 +170,7 @@ async def verify_and_cache_vertex_models():
     token = get_google_access_token()
     
     if not token or not proj:
+        print("Missing credentials or project ID for Vertex.")
         app_state["vx_models"] = []
         return
 
@@ -176,6 +178,7 @@ async def verify_and_cache_vertex_models():
         async with httpx.AsyncClient() as client:
             # 1. Fetch exactly what is available
             available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
+            print(f"Found {len(available_ids)} available Gemini models.")
             
             # 2. Fetch billing for pricing
             all_billing_skus = await fetch_vertex_billing_skus()
@@ -186,12 +189,14 @@ async def verify_and_cache_vertex_models():
             verified_models = []
             for m_id in available_ids:
                 # Look for an exact match or partial match in billing data
-                # e.g., 'gemini-1.5-pro-001' might just map to 'gemini-1.5-pro' pricing
-                base_name = m_id
-                if m_id not in billing_lookup:
-                    base_name = "-".join(m_id.split("-")[:3]) # e.g. gemini-1.5-pro
+                price_key = m_id
+                if price_key not in billing_lookup:
+                    # gemini-1.5-pro-001 -> gemini-1.5-pro
+                    parts = m_id.split("-")
+                    if len(parts) > 3:
+                        price_key = "-".join(parts[:3])
                 
-                pricing = billing_lookup.get(base_name, {}).get("pricing", {
+                pricing = billing_lookup.get(price_key, {}).get("pricing", {
                     "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
                 })
                 
@@ -217,7 +222,7 @@ async def verify_and_cache_vertex_models():
             pass
             
     finally:
-        print("Vertex verification completed.")
+        print(f"Vertex verification completed. Verified {len(app_state['vx_models'])} models.")
 
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
