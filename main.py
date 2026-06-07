@@ -129,45 +129,27 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Exhaustively try various Vertex discovery URL patterns."""
-    endpoints = [
-        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models",
-        f"https://{loc}-aiplatform.googleapis.com/v1/locations/{loc}/publishers/google/models",
-        f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models",
-        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{proj}/locations/us-central1/publishers/google/models",
-        f"https://{loc}-aiplatform.googleapis.com/v1beta1/projects/{proj}/locations/{loc}/publishers/google/models",
-        "https://aiplatform.googleapis.com/v1/publishers/google/models"
-    ]
-    
-    headers = {"Authorization": f"Bearer {token}"}
-    for url in endpoints:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                models_data = resp.json().get("models", [])
-                available_ids = []
-                for m in models_data:
-                    name_path = m.get("name", "")
-                    # Path can be: projects/.../locations/.../publishers/google/models/gemini-1.5-pro
-                    # or: publishers/google/models/gemini-1.5-pro
-                    if "/models/" in name_path:
-                        model_id = name_path.split("/models/")[-1]
-                        if "gemini" in model_id.lower():
-                            available_ids.append(model_id)
-                if available_ids:
-                    print(f"Success at {url}: {len(available_ids)} models")
-                    return available_ids
-            else:
-                print(f"Failed {url}: {resp.status_code}")
-        except Exception as e:
-            pass
-            
-    return []
+async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
+    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {MASTER_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1
+        }
+        # Short timeout since it's just a proxy ping
+        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
+        return resp.status_code == 200
+    except Exception as e:
+        return False
 
 async def verify_and_cache_vertex_models():
-    """Fetch exact available models and merge with pricing data."""
-    print("Starting instant verification of Vertex models...")
+    """Fetch billing SKUs, clean up names, and concurrently verify via proxy."""
+    print("Starting fast concurrent verification of Vertex models...")
     
     proj = os.environ.get("VERTEX_PROJECT")
     loc = os.environ.get("VERTEX_LOCATION", "us-east4")
@@ -179,37 +161,45 @@ async def verify_and_cache_vertex_models():
         return
 
     try:
-        async with httpx.AsyncClient() as client:
-            # 1. Fetch exactly what is available
-            available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
-            print(f"Found {len(available_ids)} available Gemini models.")
-            
-            # 2. Fetch billing for pricing
-            all_billing_skus = await fetch_vertex_billing_skus()
-            
-            # Create a lookup for billing prices based on base name
-            billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
-            
-            verified_models = []
-            for m_id in available_ids:
-                # Look for an exact match or partial match in billing data
-                price_key = m_id
-                if price_key not in billing_lookup:
-                    # gemini-1.5-pro-001 -> gemini-1.5-pro
-                    parts = m_id.split("-")
-                    if len(parts) > 3:
-                        price_key = "-".join(parts[:3])
-                
-                pricing = billing_lookup.get(price_key, {}).get("pricing", {
-                    "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
-                })
-                
-                verified_models.append({
-                    "id": f"vertex_ai/{m_id}",
-                    "name": m_id.replace("-", " ").title(),
-                    "pricing": pricing,
+        # 1. Fetch billing SKUs for this region
+        all_billing_skus = await fetch_vertex_billing_skus()
+        
+        # 2. Extract unique base model IDs and their pricing
+        # We use a dict to deduplicate (since billing returns Input and Output as separate SKUs)
+        potential_models = {}
+        for sku in all_billing_skus:
+            clean_id = sku["id"].split("/")[-1]
+            if clean_id not in potential_models:
+                potential_models[clean_id] = {
+                    "id": f"vertex_ai/{clean_id}",
+                    "name": sku["name"],
+                    "pricing": sku["pricing"],
                     "context_length": "Variable"
-                })
+                }
+            else:
+                # Merge pricing if we already found the other half (Input/Output)
+                if sku["pricing"]["prompt"] > 0:
+                    potential_models[clean_id]["pricing"]["prompt"] = sku["pricing"]["prompt"]
+                    potential_models[clean_id]["pricing"]["prompt_1m"] = sku["pricing"]["prompt_1m"]
+                if sku["pricing"]["completion"] > 0:
+                    potential_models[clean_id]["pricing"]["completion"] = sku["pricing"]["completion"]
+                    potential_models[clean_id]["pricing"]["completion_1m"] = sku["pricing"]["completion_1m"]
+
+        # 3. Concurrently verify all potential models
+        verified_models = []
+        async with httpx.AsyncClient() as client:
+            async def verify_model(m_id, m_data):
+                is_avail = await test_model_availability(client, m_data["id"])
+                if is_avail:
+                    return m_data
+                return None
+            
+            tasks = [verify_model(m_id, m_data) for m_id, m_data in potential_models.items()]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for res in results:
+                if res and not isinstance(res, Exception):
+                    verified_models.append(res)
             
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
