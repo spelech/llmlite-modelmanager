@@ -22,6 +22,10 @@ CACHE_EXPIRY_DAYS = 7
 APP_VERSION = os.environ.get("APP_VERSION", "dev")
 APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
+# Vertex defaults
+DEFAULT_PROJECT = os.environ.get("VERTEX_PROJECT")
+DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
+
 # Global App State for caching model lists in memory
 app_state = {
     "or_models": [],
@@ -74,9 +78,7 @@ def get_google_access_token():
 
 async def fetch_vertex_billing_skus() -> List[Dict]:
     """Fetch all Vertex AI Gemini SKUs from Billing API."""
-    proj = os.environ.get("VERTEX_PROJECT")
-    loc = os.environ.get("VERTEX_LOCATION", "us-east4")
-    
+    loc = DEFAULT_LOCATION
     token = get_google_access_token()
     if not token:
         return []
@@ -132,7 +134,6 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch exact list of available foundation models via v1beta1 REST API."""
-    # Try multiple API versions and endpoint patterns
     api_versions = ["v1beta1", "v1"]
     discovered_ids = set()
     headers = {"Authorization": f"Bearer {token}"}
@@ -172,10 +173,10 @@ async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> b
 
 async def verify_and_cache_vertex_models():
     """Fetch all possible models from Billing/API and concurrently verify them."""
-    print("Starting fast concurrent verification of Vertex models...")
+    print(f"Starting fast concurrent verification of Vertex models in {DEFAULT_LOCATION}...")
     
-    proj = os.environ.get("VERTEX_PROJECT")
-    loc = os.environ.get("VERTEX_LOCATION", "us-east1")
+    proj = DEFAULT_PROJECT
+    loc = DEFAULT_LOCATION
     token = get_google_access_token()
     
     if not token or not proj:
@@ -190,7 +191,6 @@ async def verify_and_cache_vertex_models():
             available_api_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
             
             candidates = {}
-            # Add Publisher API models as high-confidence candidates
             for m_id in available_api_ids:
                 candidates[f"vertex_ai/{m_id}"] = {
                     "id": f"vertex_ai/{m_id}",
@@ -199,13 +199,11 @@ async def verify_and_cache_vertex_models():
                     "context_length": "Variable"
                 }
                 
-            # Add Billing SKUs as potential candidates
             for sku in all_billing_skus:
-                m_id = sku["id"] # vertex_ai/gemini-1.5-flash
+                m_id = sku["id"]
                 if m_id not in candidates:
                     candidates[m_id] = sku
                 else:
-                    # Merge pricing if we already have the ID
                     if sku["pricing"]["prompt"] > 0:
                         candidates[m_id]["pricing"]["prompt"] = sku["pricing"]["prompt"]
                         candidates[m_id]["pricing"]["prompt_1m"] = sku["pricing"]["prompt_1m"]
@@ -215,7 +213,7 @@ async def verify_and_cache_vertex_models():
 
             # 2. Concurrently verify all candidates (Ping Sweep)
             verified_models = []
-            semaphore = asyncio.Semaphore(15) # Verify 15 at a time
+            semaphore = asyncio.Semaphore(15)
 
             async def check_candidate(m_data):
                 async with semaphore:
@@ -234,7 +232,6 @@ async def verify_and_cache_vertex_models():
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
         
-        # Save to file cache
         try:
             with open(CACHE_FILE, "w") as f:
                 json.dump({
@@ -251,13 +248,11 @@ async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
     app_state["or_models"] = await get_openrouter_models()
     
-    # Try to load from cache
     try:
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
                 cache_age = time.time() - cache_data.get("timestamp", 0)
-                # Check if cache is younger than 7 days (604800 seconds)
                 if cache_age < (CACHE_EXPIRY_DAYS * 24 * 3600):
                     print("Loaded Vertex models from cache.")
                     app_state["vx_models"] = cache_data.get("models", [])
@@ -266,15 +261,12 @@ async def initial_load_models():
     except Exception as e:
         print(f"Cache load error: {e}")
         
-    # If cache is old, missing, or corrupt, run sweep
     asyncio.create_task(verify_and_cache_vertex_models())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load on startup
     await initial_load_models()
     yield
-    # Cleanup on shutdown (if any)
 
 app = FastAPI(lifespan=lifespan)
 
@@ -327,6 +319,18 @@ async def force_refresh():
     
     return {"status": "success", "message": "Verification complete."}
 
+@app.post("/restart-litellm")
+async def restart_litellm():
+    """Restart the LiteLLM proxy container using Docker SDK."""
+    try:
+        import docker
+        client = docker.from_env()
+        container = client.containers.get("litellm")
+        container.restart()
+        return {"status": "success", "message": "LiteLLM container restarted successfully."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.post("/sync")
 async def sync_models(request: Request):
     form_data = await request.form()
@@ -340,7 +344,6 @@ async def sync_models(request: Request):
 
     new_model_list = []
     for mid in selected_ids:
-        # Fallback empty entry if mid somehow missing from map
         entry = {
             "model_name": mid.split("/")[-1],
             "litellm_params": {
@@ -364,18 +367,6 @@ async def sync_models(request: Request):
         yaml.safe_dump(config, f, sort_keys=False)
 
     return {"status": "success", "updated_models": len(new_model_list)}
-
-@app.post("/restart-litellm")
-async def restart_litellm():
-    """Restart the LiteLLM proxy container using Docker SDK."""
-    try:
-        import docker
-        client = docker.from_env()
-        container = client.containers.get("litellm")
-        container.restart()
-        return {"status": "success", "message": "LiteLLM container restarted successfully."}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 @app.get("/api/models")
 async def api_models():
