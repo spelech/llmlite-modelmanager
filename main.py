@@ -136,33 +136,31 @@ async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List
         from google.cloud import aiplatform_v1
         
         client_options = {"api_endpoint": f"{loc}-aiplatform.googleapis.com"}
-        client = aiplatform_v1.ModelServiceClient(
+        # Foundation models require the PublisherModelServiceClient
+        client = aiplatform_v1.PublisherModelServiceClient(
             client_options=client_options,
             credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
         )
         
-        parent = f"projects/{proj}/locations/{loc}"
-        # We query the 'google' publisher for foundation models
-        publisher_parent = f"publishers/google"
-        # The SDK method for this is slightly different than custom models
-        # We will use the raw request to hit the correct foundation model endpoint
-        # projects/{project}/locations/{location}/publishers/google/models
-        
-        # Note: ListPublisherModels is actually not project-bound in the path for foundation models
-        # We try both paths to be sure.
         parent_path = f"locations/{loc}/publishers/google"
         
         available_ids = []
         try:
             page_result = client.list_publisher_models(parent=parent_path)
             for response in page_result:
+                # The response.name is 'publishers/google/models/gemini-1.5-pro'
                 model_id = response.name.split("/")[-1]
                 if "gemini" in model_id.lower():
                     available_ids.append(model_id)
         except Exception as inner_e:
-            print(f"Primary SDK discovery failed, trying fallback: {inner_e}")
+            print(f"Primary SDK discovery failed: {inner_e}")
             # Try global as fallback
-            page_result = client.list_publisher_models(parent="locations/us-central1/publishers/google")
+            client_options_global = {"api_endpoint": "us-central1-aiplatform.googleapis.com"}
+            client_global = aiplatform_v1.PublisherModelServiceClient(
+                client_options=client_options_global,
+                credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
+            )
+            page_result = client_global.list_publisher_models(parent="locations/us-central1/publishers/google")
             for response in page_result:
                 model_id = response.name.split("/")[-1]
                 if "gemini" in model_id.lower():
