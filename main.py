@@ -130,17 +130,18 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available models from Vertex AI Publisher API."""
-    # We will try a few endpoints because discovery availability varies by region
+    """Exhaustively try various Vertex discovery URL patterns."""
     endpoints = [
-        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models" if loc != "global" else None,
+        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models",
+        f"https://{loc}-aiplatform.googleapis.com/v1/locations/{loc}/publishers/google/models",
         f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models",
-        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{proj}/locations/us-central1/publishers/google/models"
+        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{proj}/locations/us-central1/publishers/google/models",
+        f"https://{loc}-aiplatform.googleapis.com/v1beta1/projects/{proj}/locations/{loc}/publishers/google/models",
+        "https://aiplatform.googleapis.com/v1/publishers/google/models"
     ]
     
     headers = {"Authorization": f"Bearer {token}"}
     for url in endpoints:
-        if not url: continue
         try:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
@@ -148,17 +149,19 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
                 available_ids = []
                 for m in models_data:
                     name_path = m.get("name", "")
+                    # Path can be: projects/.../locations/.../publishers/google/models/gemini-1.5-pro
+                    # or: publishers/google/models/gemini-1.5-pro
                     if "/models/" in name_path:
                         model_id = name_path.split("/models/")[-1]
                         if "gemini" in model_id.lower():
                             available_ids.append(model_id)
                 if available_ids:
-                    print(f"Successfully fetched {len(available_ids)} models from {url}")
+                    print(f"Success at {url}: {len(available_ids)} models")
                     return available_ids
             else:
-                print(f"Publisher API {resp.status_code} for {url}")
+                print(f"Failed {url}: {resp.status_code}")
         except Exception as e:
-            print(f"Error fetching from {url}: {e}")
+            pass
             
     return []
 
