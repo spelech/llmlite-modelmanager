@@ -305,6 +305,18 @@ async def sync_models(request: Request):
 
     return {"status": "success", "updated_models": len(new_model_list)}
 
+@app.post("/restart-litellm")
+async def restart_litellm():
+    """Restart the LiteLLM proxy container using Docker SDK."""
+    try:
+        import docker
+        client = docker.from_env()
+        container = client.containers.get("litellm")
+        container.restart()
+        return {"status": "success", "message": "LiteLLM container restarted successfully."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/models")
 async def api_models():
     return {

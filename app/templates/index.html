@@ -106,6 +106,7 @@
 
         <div class="sync-bar">
             <button type="submit" class="btn-sync">Update LiteLLM Config</button>
+            <button type="button" class="btn-refresh" style="margin-left: 20px;" onclick="restartLiteLLM()">Restart LiteLLM Service</button>
         </div>
     </form>
 
@@ -210,11 +211,26 @@
             });
             const result = await resp.json();
             if (result.status === 'success') {
-                alert(`Successfully updated LiteLLM with ${result.updated_models} models! Please restart the LiteLLM container to apply changes.`);
+                alert(`Successfully updated LiteLLM with ${result.updated_models} models! Click "Restart LiteLLM Service" to apply changes.`);
             } else {
                 alert('Error updating configuration.');
             }
         };
+
+        async function restartLiteLLM() {
+            if (!confirm('Restart the LiteLLM proxy container? This will cause a brief service interruption.')) return;
+            try {
+                const resp = await fetch('/restart-litellm', { method: 'POST' });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    alert('LiteLLM service is restarting...');
+                } else {
+                    alert('Error restarting service: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error connecting to manager.');
+            }
+        }
 
         // Trigger initial sort
         sortModels('orList', 'name-asc');

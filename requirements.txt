@@ -8,3 +8,4 @@ litellm
 python-multipart
 pytest
 httpx
+docker
