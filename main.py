@@ -130,6 +130,29 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
+async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
+    """Fetch exact list of available foundation models via v1beta1 REST API."""
+    # Try multiple API versions and endpoint patterns
+    api_versions = ["v1beta1", "v1"]
+    discovered_ids = set()
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    for ver in api_versions:
+        url = f"https://{loc}-aiplatform.googleapis.com/{ver}/projects/{proj}/locations/{loc}/publishers/google/models"
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                models_data = resp.json().get("models", [])
+                for m in models_data:
+                    name_path = m.get("name", "")
+                    if "/models/" in name_path:
+                        model_id = name_path.split("/models/")[-1]
+                        if "gemini" in model_id.lower():
+                            discovered_ids.add(model_id)
+                if discovered_ids: break
+        except Exception: pass
+    return list(discovered_ids)
+
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
     """Send a tiny prompt to LiteLLM proxy to test if model is available."""
     try:
