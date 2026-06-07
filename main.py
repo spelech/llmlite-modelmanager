@@ -130,40 +130,26 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available foundation models via v1beta1 REST API."""
-    # Try multiple API versions and endpoint patterns
-    api_versions = ["v1beta1", "v1"]
-    discovered_ids = set()
-    
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    for ver in api_versions:
-        # Foundation models endpoint pattern
-        url = f"https://{loc}-aiplatform.googleapis.com/{ver}/projects/{proj}/locations/{loc}/publishers/google/models"
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                models_data = resp.json().get("models", [])
-                for m in models_data:
-                    name_path = m.get("name", "") # projects/.../locations/.../publishers/google/models/gemini-1.5-pro
-                    if "/models/" in name_path:
-                        model_id = name_path.split("/models/")[-1]
-                        if "gemini" in model_id.lower():
-                            discovered_ids.add(model_id)
-                if discovered_ids:
-                    print(f"Discovered {len(discovered_ids)} models via {url}")
-                    break # Stop if we found models
-            else:
-                print(f"Vertex {ver} API Error {resp.status_code} for {loc}")
-        except Exception as e:
-            print(f"Vertex {ver} Exception: {e}")
-            
-    return list(discovered_ids)
+async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
+    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {MASTER_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1
+        }
+        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 async def verify_and_cache_vertex_models():
-    """Fetch exact available models via API and merge with pricing data."""
-    print("Starting official API-based Vertex model discovery...")
+    """Fetch all possible models from Billing/API and concurrently verify them."""
+    print("Starting fast concurrent verification of Vertex models...")
     
     proj = os.environ.get("VERTEX_PROJECT")
     loc = os.environ.get("VERTEX_LOCATION", "us-east1")
@@ -176,44 +162,50 @@ async def verify_and_cache_vertex_models():
 
     try:
         async with httpx.AsyncClient() as client:
-            # 1. Fetch from Billing API first (it's the most reliable source for 'what exists')
+            # 1. Gather all candidates from Billing API and Publisher API
             all_billing_skus = await fetch_vertex_billing_skus()
-            billing_lookup = {}
-            for sku in all_billing_skus:
-                # billing ID is usually 'vertex_ai/gemini-1.5-pro'
-                clean_id = sku["id"].split("/")[-1]
-                billing_lookup[clean_id] = sku
+            available_api_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
             
-            # 2. Fetch available models via official REST API
-            available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
-            
-            # 3. Merge lists: Take everything from Publisher API, plus anything Gemini-related in Billing
-            final_ids = set(available_ids)
-            for b_id in billing_lookup:
-                if "gemini" in b_id.lower():
-                    final_ids.add(b_id)
-            
-            # Add new variants if Billing mentions them but Publisher API missed them
-            # (e.g. Gemini 2.0 Flash often shows in Billing first)
-            verified_models = []
-            for m_id in final_ids:
-                price_key = m_id
-                if price_key not in billing_lookup:
-                    # Strip version suffix (e.g. gemini-1.5-pro-002 -> gemini-1.5-pro)
-                    parts = m_id.split("-")
-                    if len(parts) > 3:
-                        price_key = "-".join(parts[:3])
-                
-                pricing = billing_lookup.get(price_key, {}).get("pricing", {
-                    "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
-                })
-                
-                verified_models.append({
+            candidates = {}
+            # Add Publisher API models as high-confidence candidates
+            for m_id in available_api_ids:
+                candidates[f"vertex_ai/{m_id}"] = {
                     "id": f"vertex_ai/{m_id}",
                     "name": m_id.replace("-", " ").title(),
-                    "pricing": pricing,
+                    "pricing": {"prompt": 0, "completion": 0, "prompt_1m": 0, "completion_1m": 0},
                     "context_length": "Variable"
-                })
+                }
+                
+            # Add Billing SKUs as potential candidates
+            for sku in all_billing_skus:
+                m_id = sku["id"] # vertex_ai/gemini-1.5-flash
+                if m_id not in candidates:
+                    candidates[m_id] = sku
+                else:
+                    # Merge pricing if we already have the ID
+                    if sku["pricing"]["prompt"] > 0:
+                        candidates[m_id]["pricing"]["prompt"] = sku["pricing"]["prompt"]
+                        candidates[m_id]["pricing"]["prompt_1m"] = sku["pricing"]["prompt_1m"]
+                    if sku["pricing"]["completion"] > 0:
+                        candidates[m_id]["pricing"]["completion"] = sku["pricing"]["completion"]
+                        candidates[m_id]["pricing"]["completion_1m"] = sku["pricing"]["completion_1m"]
+
+            # 2. Concurrently verify all candidates (Ping Sweep)
+            verified_models = []
+            semaphore = asyncio.Semaphore(15) # Verify 15 at a time
+
+            async def check_candidate(m_data):
+                async with semaphore:
+                    if await test_model_availability(client, m_data["id"]):
+                        return m_data
+                    return None
+
+            tasks = [check_candidate(m_data) for m_data in candidates.values()]
+            results = await asyncio.gather(*tasks)
+            
+            for res in results:
+                if res:
+                    verified_models.append(res)
             
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
@@ -226,11 +218,11 @@ async def verify_and_cache_vertex_models():
                     "timestamp": app_state["last_verification_time"],
                     "models": verified_models
                 }, f)
-        except:
+        except Exception:
             pass
             
     finally:
-        print(f"Vertex verification completed. {len(app_state['vx_models'])} models in view.")
+        print(f"Vertex verification completed. {len(app_state['vx_models'])} verified models found.")
 
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
