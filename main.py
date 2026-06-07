@@ -131,26 +131,26 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch exact list of available models from Vertex AI Publisher API."""
-    # Handle global vs regional base URL correctly
+    # Publisher models are not project-specific in the URL path
     base_url = f"https://{loc}-aiplatform.googleapis.com/v1" if loc != "global" else "https://aiplatform.googleapis.com/v1"
-    url = f"{base_url}/projects/{proj}/locations/{loc}/publishers/google/models"
+    url = f"{base_url}/locations/{loc}/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
-            print(f"Publisher API error ({resp.status_code}) for {loc}")
+            print(f"Publisher API error ({resp.status_code}) for {loc} at {url}")
             # Fallback to global if regional fails
             if loc != "global":
-                url_global = f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models"
+                url_global = f"https://aiplatform.googleapis.com/v1/locations/global/publishers/google/models"
                 resp = await client.get(url_global, headers=headers)
                 if resp.status_code != 200:
                     return []
             else:
                 return []
         
-        models = resp.json().get("models", [])
+        models_data = resp.json().get("models", [])
         available_ids = []
-        for m in models:
+        for m in models_data:
             name_path = m.get("name", "")
             if "/models/" in name_path:
                 model_id = name_path.split("/models/")[-1]
