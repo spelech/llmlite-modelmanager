@@ -8,6 +8,7 @@ import yaml
 import time
 import asyncio
 import httpx
+from google.oauth2 import service_account
 from typing import List, Dict
 from contextlib import asynccontextmanager
 
