@@ -1,45 +1,56 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
 import json
-import requests
 import yaml
+import time
+import asyncio
+import httpx
 from typing import List, Dict
-
-app = FastAPI()
-
-# Mount templates
-templates = Jinja2Templates(directory="app/templates")
+from contextlib import asynccontextmanager
 
 # --- Config Paths ---
 CONFIG_PATH = os.environ.get("LITELLM_CONFIG", "/app/config/config.yaml")
 VERTEX_CREDENTIALS = os.environ.get("VERTEX_CREDENTIALS_PATH", "/app/vertex_credentials.json")
 PROXY_URL = "http://litellm:4000/v1/chat/completions"
 MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "sk-local-wileyriley-gateway-12345")
+CACHE_FILE = "/app/config/verified_models_cache.json"
+CACHE_EXPIRY_DAYS = 7
 
-def get_openrouter_models() -> List[Dict]:
-    """Fetch and format OpenRouter models and pricing."""
+# Global App State for caching model lists in memory
+app_state = {
+    "or_models": [],
+    "vx_models": [],
+    "is_verifying": False,
+    "last_verification_time": 0
+}
+
+templates = Jinja2Templates(directory="app/templates")
+
+async def get_openrouter_models() -> List[Dict]:
+    """Fetch and format OpenRouter models and pricing asynchronously."""
     try:
-        resp = requests.get("https://openrouter.ai/api/v1/models")
-        if resp.status_code != 200:
-            return []
-        
-        models = []
-        for m in resp.json().get("data", []):
-            models.append({
-                "id": f"openrouter/{m['id']}",
-                "name": m["name"],
-                "pricing": {
-                    "prompt": float(m.get("pricing", {}).get("prompt", 0)),
-                    "completion": float(m.get("pricing", {}).get("completion", 0)),
-                    "prompt_1m": float(m.get("pricing", {}).get("prompt", 0)) * 1_000_000,
-                    "completion_1m": float(m.get("pricing", {}).get("completion", 0)) * 1_000_000
-                },
-                "context_length": m.get("context_length", 0)
-            })
-        return models
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("https://openrouter.ai/api/v1/models")
+            if resp.status_code != 200:
+                return []
+            
+            models = []
+            for m in resp.json().get("data", []):
+                models.append({
+                    "id": f"openrouter/{m['id']}",
+                    "name": m["name"],
+                    "pricing": {
+                        "prompt": float(m.get("pricing", {}).get("prompt", 0)),
+                        "completion": float(m.get("pricing", {}).get("completion", 0)),
+                        "prompt_1m": float(m.get("pricing", {}).get("prompt", 0)) * 1_000_000,
+                        "completion_1m": float(m.get("pricing", {}).get("completion", 0)) * 1_000_000
+                    },
+                    "context_length": m.get("context_length", 0)
+                })
+            return sorted(models, key=lambda x: x["name"])
     except Exception as e:
         print(f"Error fetching OpenRouter: {e}")
         return []
@@ -59,8 +70,8 @@ def get_google_access_token():
         print(f"Error getting Google token: {e}")
         return None
 
-def get_vertex_models() -> List[Dict]:
-    """Fetch Vertex AI models using Google Billing API and regional filtering."""
+async def fetch_vertex_billing_skus() -> List[Dict]:
+    """Fetch all Vertex AI Gemini SKUs from Billing API."""
     proj = os.environ.get("VERTEX_PROJECT")
     loc = os.environ.get("VERTEX_LOCATION", "us-east4")
     
@@ -69,79 +80,157 @@ def get_vertex_models() -> List[Dict]:
         return []
 
     try:
-        # Use Billing Catalog for regional pricing and availability
         url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
         headers = {"Authorization": f"Bearer {token}"}
-        resp = requests.get(url, headers=headers)
-        if resp.status_code != 200:
-            return []
-        
-        skus = resp.json().get("skus", [])
-        models_data = {}
-        
-        for s in skus:
-            desc = s.get("description", "")
-            regions = s.get("serviceRegions", [])
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code != 200:
+                return []
             
-            # Filter for Gemini models available in our region or global
-            if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
-                # Heuristic: Extract model name like "Gemini 3.5 Flash"
-                name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
-                if name_parts.startswith("Gemini"):
-                    model_name = name_parts
-                    # Clean up model name for LiteLLM ID (e.g. vertex_ai/gemini-1.5-flash)
-                    # We remove version suffixes like "002" unless the user picked them
-                    short_id = model_name.lower().replace(" ", "-")
-                    if short_id not in models_data:
-                        models_data[short_id] = {
-                            "id": f"vertex_ai/{short_id}",
-                            "name": model_name,
-                            "pricing": {
-                                "prompt": 0.0, 
-                                "completion": 0.0,
-                                "prompt_1m": 0.0,
-                                "completion_1m": 0.0
-                            },
-                            "context_length": "Variable"
-                        }
-                    
-                    # Update pricing if Input/Output is found
-                    pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
-                    rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
-                    price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
-                    
-                    if "Input" in desc:
-                        models_data[short_id]["pricing"]["prompt"] = price_usd
-                        models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
-                    elif "Output" in desc:
-                        models_data[short_id]["pricing"]["completion"] = price_usd
-                        models_data[short_id]["pricing"]["completion_1m"] = price_usd * 1_000_000
+            skus = resp.json().get("skus", [])
+            models_data = {}
+            
+            for s in skus:
+                desc = s.get("description", "")
+                regions = s.get("serviceRegions", [])
+                
+                if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
+                    name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
+                    if name_parts.startswith("Gemini"):
+                        model_name = name_parts
+                        short_id = model_name.lower().replace(" ", "-")
+                        if short_id not in models_data:
+                            models_data[short_id] = {
+                                "id": f"vertex_ai/{short_id}",
+                                "name": model_name,
+                                "pricing": {
+                                    "prompt": 0.0, 
+                                    "completion": 0.0,
+                                    "prompt_1m": 0.0,
+                                    "completion_1m": 0.0
+                                },
+                                "context_length": "Variable"
+                            }
+                        
+                        pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
+                        rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
+                        price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
+                        
+                        if "Input" in desc:
+                            models_data[short_id]["pricing"]["prompt"] = price_usd
+                            models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
+                        elif "Output" in desc:
+                            models_data[short_id]["pricing"]["completion"] = price_usd
+                            models_data[short_id]["pricing"]["completion_1m"] = price_usd * 1_000_000
 
-        return sorted(list(models_data.values()), key=lambda x: x["name"])
+            return sorted(list(models_data.values()), key=lambda x: x["name"])
     except Exception as e:
-        print(f"Error fetching Vertex: {e}")
+        print(f"Error fetching Vertex SKUs: {e}")
         return []
+
+async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
+    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {MASTER_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1
+        }
+        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"Ping failed for {model_id}: {e}")
+        return False
+
+async def verify_and_cache_vertex_models():
+    """Background task to fetch, verify, and cache Vertex models."""
+    if app_state["is_verifying"]:
+        return
+    app_state["is_verifying"] = True
+    print("Starting background verification of Vertex models...")
+    
+    try:
+        all_vertex_models = await fetch_vertex_billing_skus()
+        verified_models = []
+        
+        async with httpx.AsyncClient() as client:
+            # We ping sequentially or in small batches to avoid rate limits
+            for model in all_vertex_models:
+                print(f"Verifying {model['id']}...")
+                is_available = await test_model_availability(client, model["id"])
+                if is_available:
+                    verified_models.append(model)
+                # Small delay to prevent bursting the proxy
+                await asyncio.sleep(0.5)
+                
+        app_state["vx_models"] = verified_models
+        app_state["last_verification_time"] = time.time()
+        
+        # Save to file cache
+        try:
+            with open(CACHE_FILE, "w") as f:
+                json.dump({
+                    "timestamp": app_state["last_verification_time"],
+                    "models": verified_models
+                }, f)
+            print("Successfully cached verified Vertex models.")
+        except Exception as e:
+            print(f"Error saving to cache file: {e}")
+            
+    finally:
+        app_state["is_verifying"] = False
+        print("Vertex verification sweep completed.")
+
+async def initial_load_models():
+    """Load OpenRouter and check cache for Vertex on startup."""
+    app_state["or_models"] = await get_openrouter_models()
+    
+    # Try to load from cache
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, "r") as f:
+                cache_data = json.load(f)
+                cache_age = time.time() - cache_data.get("timestamp", 0)
+                # Check if cache is younger than 7 days (604800 seconds)
+                if cache_age < (CACHE_EXPIRY_DAYS * 24 * 3600):
+                    print("Loaded Vertex models from cache.")
+                    app_state["vx_models"] = cache_data.get("models", [])
+                    app_state["last_verification_time"] = cache_data.get("timestamp", 0)
+                    return
+    except Exception as e:
+        print(f"Cache load error: {e}")
+        
+    # If cache is old, missing, or corrupt, run sweep
+    asyncio.create_task(verify_and_cache_vertex_models())
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load on startup
+    await initial_load_models()
+    yield
+    # Cleanup on shutdown (if any)
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    or_models = get_openrouter_models()
-    vx_models = get_vertex_models()
-    
-    or_models.sort(key=lambda x: x['name'])
-    vx_models.sort(key=lambda x: x['name'])
-
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
-            "or_models": or_models, 
-            "vx_models": vx_models
+            "or_models": app_state["or_models"], 
+            "vx_models": app_state["vx_models"],
+            "is_verifying": app_state["is_verifying"]
         }
     )
 
 @app.post("/test")
 async def test_model(model_id: str = Form(...)):
-    """Test a model connection through the LiteLLM proxy."""
+    """Test a model connection through the LiteLLM proxy (manual UI trigger)."""
     try:
         headers = {
             "Authorization": f"Bearer {MASTER_KEY}",
@@ -152,22 +241,38 @@ async def test_model(model_id: str = Form(...)):
             "messages": [{"role": "user", "content": "ping. reply with pong"}],
             "max_tokens": 10
         }
-        resp = requests.post(PROXY_URL, headers=headers, json=payload, timeout=15)
-        if resp.status_code == 200:
-            return {"status": "success", "response": resp.json()["choices"][0]["message"]["content"]}
-        else:
-            return {"status": "error", "code": resp.status_code, "message": resp.text}
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=15.0)
+            if resp.status_code == 200:
+                return {"status": "success", "response": resp.json()["choices"][0]["message"]["content"]}
+            else:
+                return {"status": "error", "code": resp.status_code, "message": resp.text}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.post("/force-refresh")
+async def force_refresh(background_tasks: BackgroundTasks):
+    """Force clear the cache and re-run verification."""
+    if os.path.exists(CACHE_FILE):
+        try:
+            os.remove(CACHE_FILE)
+        except:
+            pass
+    # Refresh OR models immediately in background too
+    async def update_or():
+        app_state["or_models"] = await get_openrouter_models()
+    
+    background_tasks.add_task(update_or)
+    background_tasks.add_task(verify_and_cache_vertex_models)
+    
+    return {"status": "success", "message": "Verification sweep started in background."}
 
 @app.post("/sync")
 async def sync_models(request: Request):
     form_data = await request.form()
     selected_ids = form_data.getlist("models")
     
-    or_models = get_openrouter_models()
-    vx_models = get_vertex_models()
-    all_models = or_models + vx_models
+    all_models = app_state["or_models"] + app_state["vx_models"]
     model_map = {m["id"]: m for m in all_models}
 
     with open(CONFIG_PATH, "r") as f:
@@ -175,23 +280,22 @@ async def sync_models(request: Request):
 
     new_model_list = []
     for mid in selected_ids:
-        if mid in model_map:
-            m_data = model_map[mid]
-            entry = {
-                "model_name": mid.split("/")[-1],
-                "litellm_params": {
-                    "model": mid
-                }
+        # Fallback empty entry if mid somehow missing from map
+        entry = {
+            "model_name": mid.split("/")[-1],
+            "litellm_params": {
+                "model": mid
             }
-            if mid.startswith("openrouter/"):
-                entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
-            elif mid.startswith("vertex_ai/"):
-                entry["litellm_params"].update({
-                    "vertex_project": "os.environ/VERTEX_PROJECT",
-                    "vertex_location": "os.environ/VERTEX_LOCATION",
-                    "vertex_credentials": "/app/vertex_credentials.json"
-                })
-            new_model_list.append(entry)
+        }
+        if mid.startswith("openrouter/"):
+            entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
+        elif mid.startswith("vertex_ai/"):
+            entry["litellm_params"].update({
+                "vertex_project": "os.environ/VERTEX_PROJECT",
+                "vertex_location": "os.environ/VERTEX_LOCATION",
+                "vertex_credentials": "/app/vertex_credentials.json"
+            })
+        new_model_list.append(entry)
 
     wildcards = [m for m in config.get("model_list", []) if "*" in m.get("model_name", "")]
     config["model_list"] = new_model_list + wildcards
@@ -203,10 +307,12 @@ async def sync_models(request: Request):
 
 @app.get("/api/models")
 async def api_models():
-    or_models = get_openrouter_models()
-    vx_models = get_vertex_models()
-    return {"openrouter": or_models, "vertex": vx_models}
+    return {
+        "openrouter": app_state["or_models"], 
+        "vertex": app_state["vx_models"],
+        "is_verifying": app_state["is_verifying"]
+    }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
