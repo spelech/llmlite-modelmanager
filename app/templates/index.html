@@ -35,11 +35,7 @@
     <div class="header-actions">
         <h1>LiteLLM Model Manager</h1>
         <div>
-            {% if is_verifying %}
-            <span class="verifying-badge">Background Verification Running...</span>
-            {% else %}
             <button class="btn-refresh" onclick="forceRefresh()">Force Refresh & Verify</button>
-            {% endif %}
         </div>
     </div>
     <p>Select models to explicitly include in your <code>config.yaml</code>. 
@@ -185,17 +181,16 @@
         }
 
         async function forceRefresh() {
-            if (!confirm('This will ping the LiteLLM proxy for every Vertex model to verify availability. It may take a few minutes. Proceed?')) return;
+            if (!confirm('This will fetch the latest models from OpenRouter and Vertex APIs. Proceed?')) return;
             
             const btn = document.querySelector('.btn-refresh');
-            btn.innerText = 'Starting...';
+            btn.innerText = 'Refreshing...';
             btn.disabled = true;
 
             try {
                 const resp = await fetch('/force-refresh', { method: 'POST' });
                 const result = await resp.json();
                 if (result.status === 'success') {
-                    alert('Background verification started! The page will reload, and you will see a status badge while it runs.');
                     window.location.reload();
                 }
             } catch (e) {

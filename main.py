@@ -25,7 +25,6 @@ APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 app_state = {
     "or_models": [],
     "vx_models": [],
-    "is_verifying": False,
     "last_verification_time": 0
 }
 
@@ -130,45 +129,80 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
-    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
+async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
+    """Fetch exact list of available models from Vertex AI Publisher API."""
+    url = f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
+    headers = {"Authorization": f"Bearer {token}"}
     try:
-        headers = {
-            "Authorization": f"Bearer {MASTER_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_id,
-            "messages": [{"role": "user", "content": "ping"}],
-            "max_tokens": 1
-        }
-        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
-        return resp.status_code == 200
+        resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            print(f"Publisher API error: {resp.text}")
+            # Fallback to global if regional fails
+            if loc != "global":
+                url_global = f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models"
+                resp = await client.get(url_global, headers=headers)
+                if resp.status_code != 200:
+                    return []
+            else:
+                return []
+        
+        models = resp.json().get("models", [])
+        # Extract the base model names (e.g. 'gemini-1.5-pro-001')
+        available_ids = []
+        for m in models:
+            name_path = m.get("name", "")
+            if "gemini" in name_path.lower():
+                # Extract the last part of the path publishers/google/models/gemini-1.5-pro
+                model_id = name_path.split("/")[-1]
+                available_ids.append(model_id)
+        return available_ids
     except Exception as e:
-        print(f"Ping failed for {model_id}: {e}")
-        return False
+        print(f"Error fetching publisher models: {e}")
+        return []
 
 async def verify_and_cache_vertex_models():
-    """Background task to fetch, verify, and cache Vertex models."""
-    if app_state["is_verifying"]:
-        return
-    app_state["is_verifying"] = True
-    print("Starting background verification of Vertex models...")
+    """Fetch exact available models and merge with pricing data."""
+    print("Starting instant verification of Vertex models...")
     
+    proj = os.environ.get("VERTEX_PROJECT")
+    loc = os.environ.get("VERTEX_LOCATION", "us-east4")
+    token = get_google_access_token()
+    
+    if not token or not proj:
+        app_state["vx_models"] = []
+        return
+
     try:
-        all_vertex_models = await fetch_vertex_billing_skus()
-        verified_models = []
-        
         async with httpx.AsyncClient() as client:
-            # We ping sequentially or in small batches to avoid rate limits
-            for model in all_vertex_models:
-                print(f"Verifying {model['id']}...")
-                is_available = await test_model_availability(client, model["id"])
-                if is_available:
-                    verified_models.append(model)
-                # Small delay to prevent bursting the proxy
-                await asyncio.sleep(0.5)
+            # 1. Fetch exactly what is available
+            available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
+            
+            # 2. Fetch billing for pricing
+            all_billing_skus = await fetch_vertex_billing_skus()
+            
+            # Create a lookup for billing prices based on base name
+            billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
+            
+            verified_models = []
+            for m_id in available_ids:
+                # Look for an exact match or partial match in billing data
+                # e.g., 'gemini-1.5-pro-001' might just map to 'gemini-1.5-pro' pricing
+                base_name = m_id
+                if m_id not in billing_lookup:
+                    base_name = "-".join(m_id.split("-")[:3]) # e.g. gemini-1.5-pro
                 
+                pricing = billing_lookup.get(base_name, {}).get("pricing", {
+                    "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
+                })
+                
+                verified_models.append({
+                    "id": f"vertex_ai/{m_id}",
+                    "name": m_id.replace("-", " ").title(),
+                    "pricing": pricing,
+                    "context_length": "Variable"
+                })
+            
+        verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
         
@@ -179,13 +213,11 @@ async def verify_and_cache_vertex_models():
                     "timestamp": app_state["last_verification_time"],
                     "models": verified_models
                 }, f)
-            print("Successfully cached verified Vertex models.")
         except Exception as e:
-            print(f"Error saving to cache file: {e}")
+            pass
             
     finally:
-        app_state["is_verifying"] = False
-        print("Vertex verification sweep completed.")
+        print("Vertex verification completed.")
 
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
@@ -226,7 +258,6 @@ async def index(request: Request):
         context={
             "or_models": app_state["or_models"], 
             "vx_models": app_state["vx_models"],
-            "is_verifying": app_state["is_verifying"],
             "version": APP_VERSION,
             "build_time": APP_BUILD_TIME
         }
@@ -255,21 +286,18 @@ async def test_model(model_id: str = Form(...)):
         return {"status": "error", "message": str(e)}
 
 @app.post("/force-refresh")
-async def force_refresh(background_tasks: BackgroundTasks):
+async def force_refresh():
     """Force clear the cache and re-run verification."""
     if os.path.exists(CACHE_FILE):
         try:
             os.remove(CACHE_FILE)
         except:
             pass
-    # Refresh OR models immediately in background too
-    async def update_or():
-        app_state["or_models"] = await get_openrouter_models()
     
-    background_tasks.add_task(update_or)
-    background_tasks.add_task(verify_and_cache_vertex_models)
+    app_state["or_models"] = await get_openrouter_models()
+    await verify_and_cache_vertex_models()
     
-    return {"status": "success", "message": "Verification sweep started in background."}
+    return {"status": "success", "message": "Verification complete."}
 
 @app.post("/sync")
 async def sync_models(request: Request):
@@ -325,8 +353,7 @@ async def restart_litellm():
 async def api_models():
     return {
         "openrouter": app_state["or_models"], 
-        "vertex": app_state["vx_models"],
-        "is_verifying": app_state["is_verifying"]
+        "vertex": app_state["vx_models"]
     }
 
 if __name__ == "__main__":
