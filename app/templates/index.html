@@ -107,6 +107,9 @@
         <div class="sync-bar">
             <button type="submit" class="btn-sync">Update LiteLLM Config</button>
             <button type="button" class="btn-refresh" style="margin-left: 20px;" onclick="restartLiteLLM()">Restart LiteLLM Service</button>
+            <div style="font-size: 0.7em; color: #95a5a6; margin-top: 10px;">
+                Version: {{ version[:7] if version else 'dev' }} | Build: {{ build_time }}
+            </div>
         </div>
     </form>
 

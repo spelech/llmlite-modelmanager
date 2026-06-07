@@ -18,6 +18,8 @@ PROXY_URL = "http://litellm:4000/v1/chat/completions"
 MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "sk-local-wileyriley-gateway-12345")
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
+APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
 # Global App State for caching model lists in memory
 app_state = {
@@ -224,7 +226,9 @@ async def index(request: Request):
         context={
             "or_models": app_state["or_models"], 
             "vx_models": app_state["vx_models"],
-            "is_verifying": app_state["is_verifying"]
+            "is_verifying": app_state["is_verifying"],
+            "version": APP_VERSION,
+            "build_time": APP_BUILD_TIME
         }
     )
 
