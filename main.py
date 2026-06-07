@@ -201,6 +201,12 @@ async def sync_models(request: Request):
 
     return {"status": "success", "updated_models": len(new_model_list)}
 
+@app.get("/api/models")
+async def api_models():
+    or_models = get_openrouter_models()
+    vx_models = get_vertex_models()
+    return {"openrouter": or_models, "vertex": vx_models}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
