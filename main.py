@@ -130,88 +130,90 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available models using Google Cloud SDK."""
+async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
+    """Fetch exact list of available foundation models via REST API."""
+    # Foundation models use this path structure
+    url = f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
+    headers = {"Authorization": f"Bearer {token}"}
+    
     try:
-        from google.cloud import aiplatform_v1
-        
-        client_options = {"api_endpoint": f"{loc}-aiplatform.googleapis.com"}
-        # Foundation models require the PublisherModelServiceClient
-        client = aiplatform_v1.PublisherModelServiceClient(
-            client_options=client_options,
-            credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
-        )
-        
-        parent_path = f"locations/{loc}/publishers/google"
-        
-        available_ids = []
-        try:
-            page_result = client.list_publisher_models(parent=parent_path)
-            for response in page_result:
-                # The response.name is 'publishers/google/models/gemini-1.5-pro'
-                model_id = response.name.split("/")[-1]
-                if "gemini" in model_id.lower():
-                    available_ids.append(model_id)
-        except Exception as inner_e:
-            print(f"Primary SDK discovery failed: {inner_e}")
-            # Try global as fallback
-            client_options_global = {"api_endpoint": "us-central1-aiplatform.googleapis.com"}
-            client_global = aiplatform_v1.PublisherModelServiceClient(
-                client_options=client_options_global,
-                credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
-            )
-            page_result = client_global.list_publisher_models(parent="locations/us-central1/publishers/google")
-            for response in page_result:
-                model_id = response.name.split("/")[-1]
-                if "gemini" in model_id.lower():
-                    available_ids.append(model_id)
-        
-        return available_ids
+        resp = await client.get(url, headers=headers)
+        if resp.status_code == 200:
+            models_data = resp.json().get("models", [])
+            available_ids = []
+            for m in models_data:
+                name_path = m.get("name", "")
+                if "/models/" in name_path:
+                    model_id = name_path.split("/models/")[-1]
+                    if "gemini" in model_id.lower():
+                        available_ids.append(model_id)
+            return available_ids
+        else:
+            print(f"Vertex API Error {resp.status_code} at {url}: {resp.text[:200]}")
+            return []
     except Exception as e:
-        print(f"SDK Discovery Error: {e}")
-        # Final fallback to common Gemini IDs if API discovery fails
-        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+        print(f"Vertex API Exception: {e}")
+        return []
 
 async def verify_and_cache_vertex_models():
     """Fetch exact available models via API and merge with pricing data."""
-    print("Starting official SDK-based Vertex model discovery...")
+    print("Starting official API-based Vertex model discovery...")
     
     proj = os.environ.get("VERTEX_PROJECT")
     loc = os.environ.get("VERTEX_LOCATION", "us-east1")
+    token = get_google_access_token()
     
-    if not os.path.exists(VERTEX_CREDENTIALS) or not proj:
+    if not token or not proj:
         print("Missing credentials or project ID for Vertex.")
         app_state["vx_models"] = []
         return
 
     try:
-        # 1. Fetch available models via official SDK
-        available_ids = await fetch_vertex_publisher_models("", proj, loc)
-        print(f"SDK Discovery complete. Found {len(available_ids)} models.")
-        
-        # 2. Fetch billing for pricing
-        all_billing_skus = await fetch_vertex_billing_skus()
-        billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
-        
-        verified_models = []
-        for m_id in available_ids:
-            price_key = m_id
-            if price_key not in billing_lookup:
-                parts = m_id.split("-")
-                if len(parts) > 3:
-                    price_key = "-".join(parts[:3])
+        async with httpx.AsyncClient() as client:
+            # 1. Fetch available models via official REST API
+            available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
             
-            pricing = billing_lookup.get(price_key, {}).get("pricing", {
-                "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
-            })
+            # 2. Try global if regional empty
+            if not available_ids and loc != "us-central1":
+                available_ids = await fetch_vertex_publisher_models(client, token, proj, "us-central1")
+
+            print(f"Discovery complete. Found {len(available_ids)} models.")
             
-            verified_models.append({
-                "id": f"vertex_ai/{m_id}",
-                "name": m_id.replace("-", " ").title(),
-                "pricing": pricing,
-                "context_length": "Variable"
-            })
+            # 3. Fetch billing for pricing
+            all_billing_skus = await fetch_vertex_billing_skus()
+            billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
             
+            verified_models = []
+            for m_id in available_ids:
+                price_key = m_id
+                if price_key not in billing_lookup:
+                    parts = m_id.split("-")
+                    if len(parts) > 3:
+                        price_key = "-".join(parts[:3])
+                
+                pricing = billing_lookup.get(price_key, {}).get("pricing", {
+                    "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
+                })
+                
+                verified_models.append({
+                    "id": f"vertex_ai/{m_id}",
+                    "name": m_id.replace("-", " ").title(),
+                    "pricing": pricing,
+                    "context_length": "Variable"
+                })
+            
+        # Final fallback to standard list if still 0
+        if not verified_models:
+            print("Discovery found 0 models, using standard Gemini fallback.")
+            standard_ids = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+            for m_id in standard_ids:
+                verified_models.append({
+                    "id": f"vertex_ai/{m_id}",
+                    "name": m_id.replace("-", " ").title(),
+                    "pricing": {"prompt": 0, "completion": 0, "prompt_1m": 0, "completion_1m": 0},
+                    "context_length": "Variable"
+                })
+
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
