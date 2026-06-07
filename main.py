@@ -131,35 +131,36 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch exact list of available models from Vertex AI Publisher API."""
-    # Publisher models are not project-specific in the URL path
-    base_url = f"https://{loc}-aiplatform.googleapis.com/v1" if loc != "global" else "https://aiplatform.googleapis.com/v1"
-    url = f"{base_url}/locations/{loc}/publishers/google/models"
+    # We will try a few endpoints because discovery availability varies by region
+    endpoints = [
+        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models" if loc != "global" else None,
+        f"https://aiplatform.googleapis.com/v1/projects/{proj}/locations/global/publishers/google/models",
+        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{proj}/locations/us-central1/publishers/google/models"
+    ]
+    
     headers = {"Authorization": f"Bearer {token}"}
-    try:
-        resp = await client.get(url, headers=headers)
-        if resp.status_code != 200:
-            print(f"Publisher API error ({resp.status_code}) for {loc} at {url}")
-            # Fallback to global if regional fails
-            if loc != "global":
-                url_global = f"https://aiplatform.googleapis.com/v1/locations/global/publishers/google/models"
-                resp = await client.get(url_global, headers=headers)
-                if resp.status_code != 200:
-                    return []
+    for url in endpoints:
+        if not url: continue
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                models_data = resp.json().get("models", [])
+                available_ids = []
+                for m in models_data:
+                    name_path = m.get("name", "")
+                    if "/models/" in name_path:
+                        model_id = name_path.split("/models/")[-1]
+                        if "gemini" in model_id.lower():
+                            available_ids.append(model_id)
+                if available_ids:
+                    print(f"Successfully fetched {len(available_ids)} models from {url}")
+                    return available_ids
             else:
-                return []
-        
-        models_data = resp.json().get("models", [])
-        available_ids = []
-        for m in models_data:
-            name_path = m.get("name", "")
-            if "/models/" in name_path:
-                model_id = name_path.split("/models/")[-1]
-                if "gemini" in model_id.lower():
-                    available_ids.append(model_id)
-        return available_ids
-    except Exception as e:
-        print(f"Error fetching publisher models: {e}")
-        return []
+                print(f"Publisher API {resp.status_code} for {url}")
+        except Exception as e:
+            print(f"Error fetching from {url}: {e}")
+            
+    return []
 
 async def verify_and_cache_vertex_models():
     """Fetch exact available models and merge with pricing data."""
