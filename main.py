@@ -148,19 +148,25 @@ async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List
         # We will use the raw request to hit the correct foundation model endpoint
         # projects/{project}/locations/{location}/publishers/google/models
         
-        available_ids = []
-        # Fallback to a hardcoded list if discovery is blocked by organization policies, 
-        # but let's try the dynamic list first via the correct SDK path.
-        request = aiplatform_v1.ListPublisherModelsRequest(
-            parent=f"locations/{loc}/publishers/google"
-        )
-        
         # Note: ListPublisherModels is actually not project-bound in the path for foundation models
-        page_result = client.list_publisher_models(request=request)
-        for response in page_result:
-            model_id = response.name.split("/")[-1]
-            if "gemini" in model_id.lower():
-                available_ids.append(model_id)
+        # We try both paths to be sure.
+        parent_path = f"locations/{loc}/publishers/google"
+        
+        available_ids = []
+        try:
+            page_result = client.list_publisher_models(parent=parent_path)
+            for response in page_result:
+                model_id = response.name.split("/")[-1]
+                if "gemini" in model_id.lower():
+                    available_ids.append(model_id)
+        except Exception as inner_e:
+            print(f"Primary SDK discovery failed, trying fallback: {inner_e}")
+            # Try global as fallback
+            page_result = client.list_publisher_models(parent="locations/us-central1/publishers/google")
+            for response in page_result:
+                model_id = response.name.split("/")[-1]
+                if "gemini" in model_id.lower():
+                    available_ids.append(model_id)
         
         return available_ids
     except Exception as e:
