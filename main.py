@@ -131,29 +131,35 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available foundation models via REST API."""
-    # Foundation models use this path structure
-    url = f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
+    """Fetch exact list of available foundation models via v1beta1 REST API."""
+    # Try multiple API versions and endpoint patterns
+    api_versions = ["v1beta1", "v1"]
+    discovered_ids = set()
+    
     headers = {"Authorization": f"Bearer {token}"}
     
-    try:
-        resp = await client.get(url, headers=headers)
-        if resp.status_code == 200:
-            models_data = resp.json().get("models", [])
-            available_ids = []
-            for m in models_data:
-                name_path = m.get("name", "")
-                if "/models/" in name_path:
-                    model_id = name_path.split("/models/")[-1]
-                    if "gemini" in model_id.lower():
-                        available_ids.append(model_id)
-            return available_ids
-        else:
-            print(f"Vertex API Error {resp.status_code} at {url}: {resp.text[:200]}")
-            return []
-    except Exception as e:
-        print(f"Vertex API Exception: {e}")
-        return []
+    for ver in api_versions:
+        # Foundation models endpoint pattern
+        url = f"https://{loc}-aiplatform.googleapis.com/{ver}/projects/{proj}/locations/{loc}/publishers/google/models"
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                models_data = resp.json().get("models", [])
+                for m in models_data:
+                    name_path = m.get("name", "") # projects/.../locations/.../publishers/google/models/gemini-1.5-pro
+                    if "/models/" in name_path:
+                        model_id = name_path.split("/models/")[-1]
+                        if "gemini" in model_id.lower():
+                            discovered_ids.add(model_id)
+                if discovered_ids:
+                    print(f"Discovered {len(discovered_ids)} models via {url}")
+                    break # Stop if we found models
+            else:
+                print(f"Vertex {ver} API Error {resp.status_code} for {loc}")
+        except Exception as e:
+            print(f"Vertex {ver} Exception: {e}")
+            
+    return list(discovered_ids)
 
 async def verify_and_cache_vertex_models():
     """Fetch exact available models via API and merge with pricing data."""
@@ -170,23 +176,30 @@ async def verify_and_cache_vertex_models():
 
     try:
         async with httpx.AsyncClient() as client:
-            # 1. Fetch available models via official REST API
+            # 1. Fetch from Billing API first (it's the most reliable source for 'what exists')
+            all_billing_skus = await fetch_vertex_billing_skus()
+            billing_lookup = {}
+            for sku in all_billing_skus:
+                # billing ID is usually 'vertex_ai/gemini-1.5-pro'
+                clean_id = sku["id"].split("/")[-1]
+                billing_lookup[clean_id] = sku
+            
+            # 2. Fetch available models via official REST API
             available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
             
-            # 2. Try global if regional empty
-            if not available_ids and loc != "us-central1":
-                available_ids = await fetch_vertex_publisher_models(client, token, proj, "us-central1")
-
-            print(f"Discovery complete. Found {len(available_ids)} models.")
+            # 3. Merge lists: Take everything from Publisher API, plus anything Gemini-related in Billing
+            final_ids = set(available_ids)
+            for b_id in billing_lookup:
+                if "gemini" in b_id.lower():
+                    final_ids.add(b_id)
             
-            # 3. Fetch billing for pricing
-            all_billing_skus = await fetch_vertex_billing_skus()
-            billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
-            
+            # Add new variants if Billing mentions them but Publisher API missed them
+            # (e.g. Gemini 2.0 Flash often shows in Billing first)
             verified_models = []
-            for m_id in available_ids:
+            for m_id in final_ids:
                 price_key = m_id
                 if price_key not in billing_lookup:
+                    # Strip version suffix (e.g. gemini-1.5-pro-002 -> gemini-1.5-pro)
                     parts = m_id.split("-")
                     if len(parts) > 3:
                         price_key = "-".join(parts[:3])
@@ -202,22 +215,11 @@ async def verify_and_cache_vertex_models():
                     "context_length": "Variable"
                 })
             
-        # Final fallback to standard list if still 0
-        if not verified_models:
-            print("Discovery found 0 models, using standard Gemini fallback.")
-            standard_ids = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
-            for m_id in standard_ids:
-                verified_models.append({
-                    "id": f"vertex_ai/{m_id}",
-                    "name": m_id.replace("-", " ").title(),
-                    "pricing": {"prompt": 0, "completion": 0, "prompt_1m": 0, "completion_1m": 0},
-                    "context_length": "Variable"
-                })
-
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
         
+        # Save to file cache
         try:
             with open(CACHE_FILE, "w") as f:
                 json.dump({
