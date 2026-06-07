@@ -4,6 +4,7 @@ jinja2
 requests
 pyyaml
 google-auth
+google-cloud-aiplatform
 litellm
 python-multipart
 pytest

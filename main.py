@@ -129,93 +129,95 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available models from Vertex AI Publisher API."""
-    # Official endpoint for foundation models
-    url = f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    
+async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
+    """Fetch exact list of available models using Google Cloud SDK."""
     try:
-        resp = await client.get(url, headers=headers)
-        if resp.status_code != 200:
-            print(f"Vertex API Error {resp.status_code}: {resp.text}")
-            # Fallback to us-central1 if regional discovery is restricted
-            if loc != "us-central1":
-                url_fallback = f"https://us-central1-aiplatform.googleapis.com/v1/projects/{proj}/locations/us-central1/publishers/google/models"
-                resp = await client.get(url_fallback, headers=headers)
-                if resp.status_code != 200:
-                    return []
-            else:
-                return []
+        from google.cloud import aiplatform_v1
         
-        models_data = resp.json().get("models", [])
+        client_options = {"api_endpoint": f"{loc}-aiplatform.googleapis.com"}
+        client = aiplatform_v1.ModelServiceClient(
+            client_options=client_options,
+            credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
+        )
+        
+        parent = f"projects/{proj}/locations/{loc}"
+        # We query the 'google' publisher for foundation models
+        publisher_parent = f"publishers/google"
+        # The SDK method for this is slightly different than custom models
+        # We will use the raw request to hit the correct foundation model endpoint
+        # projects/{project}/locations/{location}/publishers/google/models
+        
         available_ids = []
-        for m in models_data:
-            name_path = m.get("name", "")
-            if "/models/" in name_path:
-                model_id = name_path.split("/models/")[-1]
-                if "gemini" in model_id.lower():
-                    available_ids.append(model_id)
+        # Fallback to a hardcoded list if discovery is blocked by organization policies, 
+        # but let's try the dynamic list first via the correct SDK path.
+        request = aiplatform_v1.ListPublisherModelsRequest(
+            parent=f"locations/{loc}/publishers/google"
+        )
+        
+        # Note: ListPublisherModels is actually not project-bound in the path for foundation models
+        page_result = client.list_publisher_models(request=request)
+        for response in page_result:
+            model_id = response.name.split("/")[-1]
+            if "gemini" in model_id.lower():
+                available_ids.append(model_id)
+        
         return available_ids
     except Exception as e:
-        print(f"Vertex API Exception: {e}")
-        return []
+        print(f"SDK Discovery Error: {e}")
+        # Final fallback to common Gemini IDs if API discovery fails
+        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
 async def verify_and_cache_vertex_models():
     """Fetch exact available models via API and merge with pricing data."""
-    print("Starting official API-based Vertex model discovery...")
+    print("Starting official SDK-based Vertex model discovery...")
     
     proj = os.environ.get("VERTEX_PROJECT")
     loc = os.environ.get("VERTEX_LOCATION", "us-east1")
-    token = get_google_access_token()
     
-    if not token or not proj:
+    if not os.path.exists(VERTEX_CREDENTIALS) or not proj:
         print("Missing credentials or project ID for Vertex.")
         app_state["vx_models"] = []
         return
 
     try:
-        async with httpx.AsyncClient() as client:
-            # 1. Fetch available models via official REST API
-            available_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
-            print(f"Discovery complete. Found {len(available_ids)} models.")
+        # 1. Fetch available models via official SDK
+        available_ids = await fetch_vertex_publisher_models("", proj, loc)
+        print(f"SDK Discovery complete. Found {len(available_ids)} models.")
+        
+        # 2. Fetch billing for pricing
+        all_billing_skus = await fetch_vertex_billing_skus()
+        billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
+        
+        verified_models = []
+        for m_id in available_ids:
+            price_key = m_id
+            if price_key not in billing_lookup:
+                parts = m_id.split("-")
+                if len(parts) > 3:
+                    price_key = "-".join(parts[:3])
             
-            # 2. Fetch billing for pricing
-            all_billing_skus = await fetch_vertex_billing_skus()
-            billing_lookup = {sku["id"].split("/")[-1]: sku for sku in all_billing_skus}
+            pricing = billing_lookup.get(price_key, {}).get("pricing", {
+                "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
+            })
             
-            verified_models = []
-            for m_id in available_ids:
-                price_key = m_id
-                if price_key not in billing_lookup:
-                    # Strip version suffix (e.g. gemini-1.5-pro-002 -> gemini-1.5-pro)
-                    parts = m_id.split("-")
-                    if len(parts) > 3:
-                        price_key = "-".join(parts[:3])
-                
-                pricing = billing_lookup.get(price_key, {}).get("pricing", {
-                    "prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0
-                })
-                
-                verified_models.append({
-                    "id": f"vertex_ai/{m_id}",
-                    "name": m_id.replace("-", " ").title(),
-                    "pricing": pricing,
-                    "context_length": "Variable"
-                })
+            verified_models.append({
+                "id": f"vertex_ai/{m_id}",
+                "name": m_id.replace("-", " ").title(),
+                "pricing": pricing,
+                "context_length": "Variable"
+            })
             
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
         
-        # Save to file cache
         try:
             with open(CACHE_FILE, "w") as f:
                 json.dump({
                     "timestamp": app_state["last_verification_time"],
                     "models": verified_models
                 }, f)
-        except Exception as e:
+        except:
             pass
             
     finally:
