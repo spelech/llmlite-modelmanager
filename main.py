@@ -127,36 +127,32 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models via REST API (trying project-less and project-based paths)."""
-    discovered_ids = set()
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # Discovery endpoints: 
-    # 1. Project-less publisher path (Google's recommendation for managed models)
-    # 2. Regional project-bound path
-    urls = [
-        f"https://{loc}-aiplatform.googleapis.com/v1/publishers/google/models",
-        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
-    ]
-    
-    for url in urls:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                models_data = resp.json().get("models", [])
-                for m in models_data:
-                    name_path = m.get("name", "")
-                    if "/models/" in name_path:
-                        model_id = name_path.split("/models/")[-1]
-                        if "gemini" in model_id.lower():
-                            discovered_ids.add(model_id)
-                if discovered_ids:
-                    print(f"Discovered {len(discovered_ids)} models via {url}")
-                    break
-        except Exception:
-            pass
-    return list(discovered_ids)
+async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
+    """Fetch available foundation models using the exact snippet provided."""
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerativeModel
+        from google.oauth2 import service_account
+        
+        # Initialize with credentials and location
+        creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
+        vertexai.init(project=proj, location=loc, credentials=creds)
+        
+        available_ids = []
+        # Use the generative model utility to fetch all serverless models supported by the SDK
+        print(f"Querying available models in {loc} via GenerativeModel.list_models()...")
+        for model in GenerativeModel.list_models():
+            # Model name is 'publishers/google/models/gemini-1.5-flash'
+            model_id = model.name.split("/")[-1]
+            if "gemini" in model_id.lower():
+                available_ids.append(model_id)
+        
+        print(f"SDK found {len(available_ids)} foundation models")
+        return available_ids
+    except Exception as e:
+        print(f"Provided SDK Snippet Error: {e}")
+        # Re-importing to ensure we have it for the list below
+        return ["gemini-3.5-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
     """Send a tiny prompt to LiteLLM proxy to test if model is available."""
