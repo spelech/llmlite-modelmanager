@@ -166,8 +166,8 @@
                          data-id="{{ m.id | lower }}"
                          data-brand="{{ m.brand }}"
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
-                         data-image="{{ 'true' if m.capabilities.image_in else 'false' }}"
-                         data-audio="{{ 'true' if m.capabilities.audio_in else 'false' }}"
+                         data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                         data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
@@ -180,8 +180,8 @@
                                 In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
                             </div>
                             <div class="capabilities">
-                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
-                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
+                                {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
+                                {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -199,8 +199,8 @@
                          data-id="{{ m.id | lower }}"
                          data-brand="google"
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
-                         data-image="{{ 'true' if m.capabilities.image_in else 'false' }}"
-                         data-audio="{{ 'true' if m.capabilities.audio_in else 'false' }}"
+                         data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                         data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
@@ -210,8 +210,8 @@
                                 In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
                             </div>
                             <div class="capabilities">
-                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
-                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
+                                {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
+                                {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
