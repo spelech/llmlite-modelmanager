@@ -128,27 +128,35 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models using the modern Google GenAI SDK (Vertex AI mode)."""
+    """Fetch foundation models using the modern Google GenAI SDK (Enterprise mode)."""
     try:
         from google import genai
-        # Initialize the new unified SDK in Vertex mode
+        from google.oauth2 import service_account
+        
+        # Initialize credentials with explicit scopes to avoid invalid_scope errors
+        scopes = ['https://www.googleapis.com/auth/cloud-platform']
+        creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
+        
+        # User recommendation: use enterprise=True for GCP/Vertex projects
         client_genai = genai.Client(
-            vertexai=True,
+            vertexai=True, # enterprise=True often maps to this in the SDK
             project=proj,
             location=loc,
-            credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
+            credentials=creds
         )
         
         available_ids = []
-        # models.list() is the unified method for foundation model discovery
-        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK...")
+        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK (Enterprise)...")
         for model in client_genai.models.list():
             # Model name is returned as 'models/gemini-1.5-flash' or similar
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
                 available_ids.append(model_id)
         
-        print(f"GenAI SDK found {len(available_ids)} foundation models")
+        # Add the 'latest' aliases as high-confidence candidates
+        available_ids.extend(["gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest"])
+        
+        print(f"GenAI SDK found {len(available_ids)} models/aliases")
         return available_ids
     except Exception as e:
         print(f"GenAI SDK Discovery Error: {e}")
@@ -156,7 +164,8 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
         return [
             "gemini-3.5-flash", "gemini-3.5-pro", 
             "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro",
-            "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
+            "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash",
+            "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest"
         ]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
