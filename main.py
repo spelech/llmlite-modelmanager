@@ -237,8 +237,20 @@ async def verify_and_cache_vertex_models():
             semaphore = asyncio.Semaphore(20)
             async def check(m_data):
                 async with semaphore:
-                    if await test_model_availability(client, m_data["id"]):
-                        return m_data
+                    try:
+                        headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
+                        payload = {
+                            "model": m_data["id"],
+                            "messages": [{"role": "user", "content": "ping"}],
+                            "max_tokens": 1
+                        }
+                        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
+                        if resp.status_code == 200:
+                            return m_data
+                        else:
+                            print(f"Verification failed for {m_data['id']}: Status {resp.status_code} - {resp.text[:100]}")
+                    except Exception as e:
+                        print(f"Verification error for {m_data['id']}: {e}")
                 return None
             
             tasks = [check(m_data) for m_data in candidates.values()]
