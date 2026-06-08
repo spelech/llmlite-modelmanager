@@ -133,25 +133,24 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models using the Generative AI SDK."""
+    """Fetch foundation models using the modern Google GenAI SDK."""
     try:
-        import google.generativeai as genai
-        # Configure with API key from environment
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        from google import genai
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
         
         available_ids = []
-        # list_models() returns foundation models available to the API key
-        for model in genai.list_models():
-            # Model name comes as 'models/gemini-1.5-flash'
+        # models.list() returns foundation models available to the API key
+        for model in client.models.list():
+            # Model name comes as 'models/gemini-2.0-flash-exp'
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
                 available_ids.append(model_id)
         
-        print(f"GenerativeAI SDK found {len(available_ids)} models")
+        print(f"GenAI SDK discovered {len(available_ids)} models")
         return available_ids
     except Exception as e:
-        print(f"GenerativeAI SDK Error: {e}")
-        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+        print(f"GenAI SDK Error: {e}")
+        return ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
     """Send a tiny prompt to LiteLLM proxy to test if model is available."""
