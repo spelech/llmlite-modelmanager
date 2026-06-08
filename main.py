@@ -246,19 +246,26 @@ async def verify_and_cache_vertex_models():
                             "messages": [{"role": "user", "content": "ping"}],
                             "max_tokens": 1
                         }
-                        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
+                        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
                         if resp.status_code == 200:
+                            print(f"Verification SUCCESS for {m_data['id']}")
                             return m_data
                         else:
-                            print(f"Verification failed for {m_data['id']}: Status {resp.status_code} - {resp.text[:100]}")
+                            # Log the error but hide from UI
+                            msg = resp.text[:150].replace("\n", " ")
+                            print(f"Verification FAILED for {m_data['id']}: {resp.status_code} - {msg}")
                     except Exception as e:
-                        print(f"Verification error for {m_data['id']}: {e}")
+                        print(f"Verification ERROR for {m_data['id']}: {e}")
                 return None
             
             tasks = [check(m_data) for m_data in candidates.values()]
             results = await asyncio.gather(*tasks)
             verified_models = [r for r in results if r]
             
+        # Log summary of what worked
+        success_ids = [m["id"] for m in verified_models]
+        print(f"Vertex discovery finished. Successfully verified {len(verified_models)} models: {', '.join(success_ids)}")
+        
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
