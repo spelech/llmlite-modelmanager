@@ -127,6 +127,37 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
+async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
+    """Fetch foundation models via REST API (trying project-less and project-based paths)."""
+    discovered_ids = set()
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Discovery endpoints: 
+    # 1. Project-less publisher path (Google's recommendation for managed models)
+    # 2. Regional project-bound path
+    urls = [
+        f"https://{loc}-aiplatform.googleapis.com/v1/publishers/google/models",
+        f"https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models"
+    ]
+    
+    for url in urls:
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                models_data = resp.json().get("models", [])
+                for m in models_data:
+                    name_path = m.get("name", "")
+                    if "/models/" in name_path:
+                        model_id = name_path.split("/models/")[-1]
+                        if "gemini" in model_id.lower():
+                            discovered_ids.add(model_id)
+                if discovered_ids:
+                    print(f"Discovered {len(discovered_ids)} models via {url}")
+                    break
+        except Exception:
+            pass
+    return list(discovered_ids)
+
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
     """Send a tiny prompt to LiteLLM proxy to test if model is available."""
     try:
@@ -142,22 +173,28 @@ async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> b
         return False
 
 async def verify_and_cache_vertex_models():
-    """Concurrently verify a list of potential Gemini models via proxy."""
+    """Concurrently verify a list of potential Gemini models (2026 series)."""
     print(f"Starting parallel verification for {DEFAULT_LOCATION}...")
     
-    if not os.path.exists(VERTEX_CREDENTIALS):
+    proj = DEFAULT_PROJECT
+    loc = DEFAULT_LOCATION
+    token = get_google_access_token()
+
+    if not os.path.exists(VERTEX_CREDENTIALS) or not proj:
         app_state["vx_models"] = []
         return
 
-    # Candidates = (Dynamic Billing SKUs) + (Hardcoded common Gemini variants)
+    # Candidates = (Dynamic API Discovery) + (Dynamic Billing SKUs) + (2026 Static List)
     candidates = {}
     
-    # 1. Standard expected Gemini IDs
+    # 1. 2026 Series Static List (Ensures we don't miss new version branches)
     standard_ids = [
-        "gemini-2.0-flash-001", "gemini-2.0-flash-exp", "gemini-2.0-flash-lite-preview-02-05",
-        "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002",
-        "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002", "gemini-1.5-flash-8b",
-        "gemini-1.0-pro", "gemini-1.0-pro-001", "gemini-1.0-pro-002"
+        "gemini-3.5-flash", "gemini-3.5-pro", 
+        "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro", "gemini-3.1-pro-preview",
+        "gemini-3.0-flash", "gemini-3.0-pro",
+        "gemini-2.5-flash", "gemini-2.5-pro",
+        "gemini-2.0-flash", "gemini-2.0-pro",
+        "gemini-1.5-flash", "gemini-1.5-pro"
     ]
     for s_id in standard_ids:
         candidates[f"vertex_ai/{s_id}"] = {
@@ -167,16 +204,27 @@ async def verify_and_cache_vertex_models():
             "context_length": "Variable"
         }
 
-    # 2. Add dynamic SKUs from Billing (with real prices)
-    billing_models = await fetch_vertex_billing_skus()
-    for m in billing_models:
-        # Overwrite or add
-        candidates[m["id"]] = m
-
     try:
-        verified_models = []
         async with httpx.AsyncClient() as client:
-            semaphore = asyncio.Semaphore(20) # Ping up to 20 models at once
+            # 2. Add models from Publisher API Discovery
+            api_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
+            for a_id in api_ids:
+                if f"vertex_ai/{a_id}" not in candidates:
+                    candidates[f"vertex_ai/{a_id}"] = {
+                        "id": f"vertex_ai/{a_id}",
+                        "name": a_id.replace("-", " ").title(),
+                        "pricing": {"prompt": 0, "completion": 0, "prompt_1m": 0, "completion_1m": 0},
+                        "context_length": "Variable"
+                    }
+
+            # 3. Add dynamic SKUs from Billing (overwrites with real prices)
+            billing_models = await fetch_vertex_billing_skus()
+            for b_m in billing_models:
+                candidates[b_m["id"]] = b_m
+
+            # 4. Parallel Verification Sweep
+            verified_models = []
+            semaphore = asyncio.Semaphore(20)
             async def check(m_data):
                 async with semaphore:
                     if await test_model_availability(client, m_data["id"]):
