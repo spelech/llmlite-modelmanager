@@ -133,35 +133,24 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
-    """Fetch exact list of available foundation models using High-Level SDK."""
+    """Fetch foundation models using the Generative AI SDK."""
     try:
-        import vertexai
-        from vertexai.generative_models import GenerativeModel
-        
-        vertexai.init(project=proj, location=loc, credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS))
+        import google.generativeai as genai
+        # Configure with API key from environment
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
         
         available_ids = []
-        # In newer SDKs, it's list_models() on GenerativeModel or Model
-        # We will try both common patterns.
-        try:
-            models = GenerativeModel.list_models()
-        except:
-            from vertexai.language_models import TextGenerationModel
-            models = GenerativeModel.list_models() if hasattr(GenerativeModel, 'list_models') else []
-
-        for model in models:
+        # list_models() returns foundation models available to the API key
+        for model in genai.list_models():
+            # Model name comes as 'models/gemini-1.5-flash'
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
                 available_ids.append(model_id)
         
-        # If discovery returns nothing, return a few guaranteed IDs to prevent empty list
-        if not available_ids:
-             return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
-
-        print(f"SDK Discovery found {len(available_ids)} models in {loc}")
+        print(f"GenerativeAI SDK found {len(available_ids)} models")
         return available_ids
     except Exception as e:
-        print(f"High-level SDK Discovery Error: {e}")
+        print(f"GenerativeAI SDK Error: {e}")
         return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
