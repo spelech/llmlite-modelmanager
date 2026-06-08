@@ -164,6 +164,23 @@ async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List
         print(f"High-level SDK Discovery Error: {e}")
         return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
+async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
+    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {MASTER_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1
+        }
+        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
 async def verify_and_cache_vertex_models():
     """Fetch all possible models from high-level SDK and concurrently verify them."""
     print(f"Starting definitive SDK verification of Vertex models in {DEFAULT_LOCATION}...")
