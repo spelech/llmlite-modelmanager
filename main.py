@@ -128,31 +128,36 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch available foundation models using the exact snippet provided."""
+    """Fetch foundation models using the modern Google GenAI SDK (Vertex AI mode)."""
     try:
-        import vertexai
-        from vertexai.generative_models import GenerativeModel
-        from google.oauth2 import service_account
-        
-        # Initialize with credentials and location
-        creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
-        vertexai.init(project=proj, location=loc, credentials=creds)
+        from google import genai
+        # Initialize the new unified SDK in Vertex mode
+        client_genai = genai.Client(
+            vertexai=True,
+            project=proj,
+            location=loc,
+            credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS)
+        )
         
         available_ids = []
-        # Use the generative model utility to fetch all serverless models supported by the SDK
-        print(f"Querying available models in {loc} via GenerativeModel.list_models()...")
-        for model in GenerativeModel.list_models():
-            # Model name is 'publishers/google/models/gemini-1.5-flash'
+        # models.list() is the unified method for foundation model discovery
+        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK...")
+        for model in client_genai.models.list():
+            # Model name is returned as 'models/gemini-1.5-flash' or similar
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
                 available_ids.append(model_id)
         
-        print(f"SDK found {len(available_ids)} foundation models")
+        print(f"GenAI SDK found {len(available_ids)} foundation models")
         return available_ids
     except Exception as e:
-        print(f"Provided SDK Snippet Error: {e}")
-        # Re-importing to ensure we have it for the list below
-        return ["gemini-3.5-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+        print(f"GenAI SDK Discovery Error: {e}")
+        # Return modern 2026 series as high-confidence candidates if discovery fails
+        return [
+            "gemini-3.5-flash", "gemini-3.5-pro", 
+            "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro",
+            "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
+        ]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
     """Send a tiny prompt to LiteLLM proxy to test if model is available."""
