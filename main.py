@@ -96,9 +96,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                 desc = s.get("description", "")
                 regions = s.get("serviceRegions", [])
                 
-                # Check for region match OR global
                 if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
-                    # Extract model name
                     name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
                     if name_parts.startswith("Gemini"):
                         model_name = name_parts
@@ -128,11 +126,11 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models using the modern Google GenAI SDK (Vertex AI mode)."""
+    """Fetch foundation models using the modern unified google-genai SDK."""
     try:
         from google import genai
-        from google.oauth2 import service_account
         
+        # Unified SDK initialization for Vertex/Enterprise
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
         creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
         
@@ -143,31 +141,31 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
             credentials=creds
         )
         
-        discovered_ids = []
-        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK...")
-        # Unified list of foundation models
+        available_ids = []
+        print(f"Querying models in {loc} via modern GenAI unified SDK...")
+        # models.list() returns all managed foundation models in context
         for model in client_genai.models.list():
-            # Model name is returned as 'publishers/google/models/gemini-1.5-flash'
+            # Extract model_id (e.g., 'gemini-2.0-flash') from resource path
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
-                discovered_ids.append(model_id)
+                available_ids.append(model_id)
         
-        # Add the 'latest' aliases as they are definitive serverless endpoints
-        discovered_ids.extend([
+        # Explicitly include definitive 'latest' serverless aliases
+        available_ids.extend([
             "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest",
             "gemini-2.0-flash-exp", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest"
         ])
         
-        print(f"GenAI SDK discovered: {', '.join(discovered_ids)}")
-        return discovered_ids
+        print(f"GenAI SDK discovered: {', '.join(available_ids)}")
+        return list(set(available_ids))
     except Exception as e:
-        print(f"GenAI SDK Discovery Error: {e}")
-        # Standard serverless lineup for 2026 as fallback candidates
+        print(f"Modern GenAI SDK Discovery Error: {e}")
+        # Standard serverless lineup for 2026 as hardcoded fallback candidates
         return [
             "gemini-3.5-flash", "gemini-3.5-pro", 
             "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro",
-            "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash",
-            "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest"
+            "gemini-2.5-flash", "gemini-2.5-pro",
+            "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"
         ]
 
 async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
@@ -186,74 +184,51 @@ async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> b
 
 async def verify_and_cache_vertex_models():
     """Concurrently verify a list of potential Gemini models (2026 series)."""
-    print(f"Starting parallel verification for {DEFAULT_LOCATION}...")
+    print(f"Starting definitive verification for {DEFAULT_LOCATION}...")
     
     proj = DEFAULT_PROJECT
     loc = DEFAULT_LOCATION
     token = get_google_access_token()
 
     if not os.path.exists(VERTEX_CREDENTIALS) or not proj:
+        print("Credentials or Project ID missing.")
         app_state["vx_models"] = []
         return
 
-    # Candidates = (Dynamic API Discovery) + (Dynamic Billing SKUs) + (2026 Static List)
+    # Candidates = (GenAI SDK Discovery) + (Dynamic Billing SKUs) + (2026 Static Fallback)
     candidates = {}
     
-    # 1. 2026 Series Static List (Ensures we don't miss new version branches)
-    standard_ids = [
-        "gemini-3.5-flash", "gemini-3.5-pro", 
-        "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro", "gemini-3.1-pro-preview",
-        "gemini-3.0-flash", "gemini-3.0-pro",
-        "gemini-2.5-flash", "gemini-2.5-pro",
-        "gemini-2.0-flash", "gemini-2.0-pro",
-        "gemini-1.5-flash", "gemini-1.5-pro"
-    ]
-    for s_id in standard_ids:
-        candidates[f"vertex_ai/{s_id}"] = {
-            "id": f"vertex_ai/{s_id}",
-            "name": s_id.replace("-", " ").title(),
-            "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
-            "context_length": "Variable"
-        }
-
     try:
         async with httpx.AsyncClient() as client:
-            # 2. Add models from Publisher API Discovery
+            # 1. Fetch from modern GenAI SDK
             api_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
             for a_id in api_ids:
-                if f"vertex_ai/{a_id}" not in candidates:
-                    candidates[f"vertex_ai/{a_id}"] = {
-                        "id": f"vertex_ai/{a_id}",
-                        "name": a_id.replace("-", " ").title(),
-                        "pricing": {"prompt": 0, "completion": 0, "prompt_1m": 0, "completion_1m": 0},
-                        "context_length": "Variable"
-                    }
+                candidates[f"vertex_ai/{a_id}"] = {
+                    "id": f"vertex_ai/{a_id}",
+                    "name": a_id.replace("-", " ").title(),
+                    "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
+                    "context_length": "Variable"
+                }
 
-            # 3. Add dynamic SKUs from Billing (overwrites with real prices)
+            # 2. Fetch from Billing API (provides real pricing)
             billing_models = await fetch_vertex_billing_skus()
             for b_m in billing_models:
                 candidates[b_m["id"]] = b_m
 
-            # 4. Parallel Verification Sweep
+            # 3. Parallel Verification Sweep
             verified_models = []
             semaphore = asyncio.Semaphore(20)
             async def check(m_data):
                 async with semaphore:
                     try:
                         headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
-                        payload = {
-                            "model": m_data["id"],
-                            "messages": [{"role": "user", "content": "ping"}],
-                            "max_tokens": 1
-                        }
+                        payload = {"model": m_data["id"], "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
                         resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
                         if resp.status_code == 200:
                             print(f"Verification SUCCESS for {m_data['id']}")
                             return m_data
                         else:
-                            # Log the error but hide from UI
-                            msg = resp.text[:150].replace("\n", " ")
-                            print(f"Verification FAILED for {m_data['id']}: {resp.status_code} - {msg}")
+                            print(f"Verification FAILED for {m_data['id']}: {resp.status_code}")
                     except Exception as e:
                         print(f"Verification ERROR for {m_data['id']}: {e}")
                 return None
@@ -262,10 +237,6 @@ async def verify_and_cache_vertex_models():
             results = await asyncio.gather(*tasks)
             verified_models = [r for r in results if r]
             
-        # Log summary of what worked
-        success_ids = [m["id"] for m in verified_models]
-        print(f"Vertex discovery finished. Successfully verified {len(verified_models)} models: {', '.join(success_ids)}")
-        
         verified_models = sorted(verified_models, key=lambda x: x["name"])
         app_state["vx_models"] = verified_models
         app_state["last_verification_time"] = time.time()
@@ -276,7 +247,7 @@ async def verify_and_cache_vertex_models():
         except: pass
             
     finally:
-        print(f"Vertex discovery finished. Found {len(app_state['vx_models'])} functional models.")
+        print(f"Vertex verification finished. Found {len(app_state['vx_models'])} functional models.")
 
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
@@ -286,6 +257,7 @@ async def initial_load_models():
             with open(CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
                 if time.time() - cache_data.get("timestamp", 0) < (CACHE_EXPIRY_DAYS * 24 * 3600):
+                    print("Loaded Vertex models from cache.")
                     app_state["vx_models"] = cache_data.get("models", [])
                     app_state["last_verification_time"] = cache_data.get("timestamp", 0)
                     return
