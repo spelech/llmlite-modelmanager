@@ -128,39 +128,41 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         return []
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models using the modern Google GenAI SDK (Enterprise mode)."""
+    """Fetch foundation models using the modern Google GenAI SDK (Vertex AI mode)."""
     try:
         from google import genai
         from google.oauth2 import service_account
         
-        # Initialize credentials with explicit scopes to avoid invalid_scope errors
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
         creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
         
-        # User recommendation: use enterprise=True for GCP/Vertex projects
         client_genai = genai.Client(
-            vertexai=True, # enterprise=True often maps to this in the SDK
+            vertexai=True,
             project=proj,
             location=loc,
             credentials=creds
         )
         
-        available_ids = []
-        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK (Enterprise)...")
+        discovered_ids = []
+        print(f"Querying Vertex AI foundation models in {loc} via google-genai SDK...")
+        # Unified list of foundation models
         for model in client_genai.models.list():
-            # Model name is returned as 'models/gemini-1.5-flash' or similar
+            # Model name is returned as 'publishers/google/models/gemini-1.5-flash'
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
-                available_ids.append(model_id)
+                discovered_ids.append(model_id)
         
-        # Add the 'latest' aliases as high-confidence candidates
-        available_ids.extend(["gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest"])
+        # Add the 'latest' aliases as they are definitive serverless endpoints
+        discovered_ids.extend([
+            "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest",
+            "gemini-2.0-flash-exp", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest"
+        ])
         
-        print(f"GenAI SDK found {len(available_ids)} models/aliases")
-        return available_ids
+        print(f"GenAI SDK discovered: {', '.join(discovered_ids)}")
+        return discovered_ids
     except Exception as e:
         print(f"GenAI SDK Discovery Error: {e}")
-        # Return modern 2026 series as high-confidence candidates if discovery fails
+        # Standard serverless lineup for 2026 as fallback candidates
         return [
             "gemini-3.5-flash", "gemini-3.5-pro", 
             "gemini-3.1-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro",
