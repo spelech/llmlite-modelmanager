@@ -75,7 +75,7 @@ def get_google_access_token():
         return None
 
 async def fetch_vertex_billing_skus() -> List[Dict]:
-    """Fetch all Vertex AI Gemini SKUs from Billing API."""
+    """Fetch all Vertex AI Gemini SKUs from Billing API, preferring standard PAYG."""
     loc = DEFAULT_LOCATION
     token = get_google_access_token()
     if not token:
@@ -96,7 +96,12 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                 desc = s.get("description", "")
                 regions = s.get("serviceRegions", [])
                 
+                # Filter: Must be Gemini, must be in our region/global, 
+                # and EXCLUDE high-cost 'High Priority' or 'Provisioned' tiers
                 if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
+                    if any(x in desc for x in ["High Priority", "Provisioned", "Commitment", "Reserved"]):
+                        continue
+
                     name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
                     if name_parts.startswith("Gemini"):
                         model_name = name_parts
@@ -113,6 +118,8 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                         rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
                         price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
                         
+                        # Only update if we don't already have a price (prevents random overwrites)
+                        # and ensures we catch Input/Output accurately
                         if "Input" in desc:
                             models_data[short_id]["pricing"]["prompt"] = price_usd
                             models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
@@ -124,6 +131,19 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
     except Exception as e:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
+
+# Fallback pricing table for 2026 Gemini models (Best effort estimates)
+FALLBACK_PRICING = {
+    "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-3.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
+    "gemini-2.5-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
+    "gemini-2.5-flash-lite": {"prompt_1m": 0.05, "completion_1m": 0.20},
+    "gemini-2.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-1.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+}
 
 async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch foundation models using the modern unified google-genai SDK."""
@@ -214,6 +234,23 @@ async def verify_and_cache_vertex_models():
             billing_models = await fetch_vertex_billing_skus()
             for b_m in billing_models:
                 candidates[b_m["id"]] = b_m
+
+            # Apply fallback pricing for 2026 models if billing is $0.00
+            for c_id, c_data in candidates.items():
+                m_short = c_id.split("/")[-1]
+                # Look for matching base name in fallback table
+                base_name = m_short
+                if m_short not in FALLBACK_PRICING:
+                    parts = m_short.split("-")
+                    if len(parts) > 3:
+                        base_name = "-".join(parts[:3])
+                
+                if base_name in FALLBACK_PRICING:
+                    fb = FALLBACK_PRICING[base_name]
+                    if c_data["pricing"]["prompt_1m"] == 0:
+                        c_data["pricing"]["prompt_1m"] = fb["prompt_1m"]
+                    if c_data["pricing"]["completion_1m"] == 0:
+                        c_data["pricing"]["completion_1m"] = fb["completion_1m"]
 
             # 3. Parallel Verification Sweep
             verified_models = []
