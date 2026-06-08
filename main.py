@@ -127,7 +127,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
         print(f"Error fetching Vertex SKUs: {e}")
         return []
 
-async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List[str]:
+async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
     """Fetch available foundation models using the exact snippet provided."""
     try:
         import vertexai
