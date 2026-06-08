@@ -264,7 +264,12 @@ async def initial_load_models():
             with open(CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
                 if time.time() - cache_data.get("timestamp", 0) < (CACHE_EXPIRY_DAYS * 24 * 3600):
-                    app_state["vx_models"] = cache_data.get("models", [])
+                    models = cache_data.get("models", [])
+                    # Safeguard: Ensure capabilities exist for all cached models
+                    for m in models:
+                        if "capabilities" not in m:
+                            m["capabilities"] = extract_capabilities("", m["id"])
+                    app_state["vx_models"] = models
                     app_state["last_verification_time"] = cache_data.get("timestamp", 0)
                     return
     except: pass
