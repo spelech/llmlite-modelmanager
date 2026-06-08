@@ -5,64 +5,183 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LiteLLM Model Manager</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1300px; margin: 0 auto; padding: 20px; background-color: #f4f7f6; }
-        h1, h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .header-actions { display: flex; justify-content: space-between; align-items: center; }
-        .container { display: flex; gap: 40px; }
-        .column { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .model-item { margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; display: flex; align-items: center; gap: 10px; }
-        .model-item:hover { background-color: #f9f9f9; }
+        :root {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --bg-input: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-dim: #a0a0a0;
+            --accent: #3498db;
+            --accent-hover: #2980b9;
+            --border: #333;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --purple: #9b59b6;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            line-height: 1.6; 
+            color: var(--text-main); 
+            background-color: var(--bg-body);
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+
+        h1, h2 { color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 0; }
+        
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        
+        /* Filters Panel */
+        .filter-panel { 
+            background: var(--bg-card); 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            border: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .filter-group { display: flex; flex-direction: column; gap: 8px; }
+        .filter-label { font-size: 0.85em; color: var(--text-dim); text-transform: uppercase; font-weight: bold; }
+        
+        input, select { 
+            background: var(--bg-input); 
+            border: 1px solid var(--border); 
+            color: var(--text-main); 
+            padding: 10px; 
+            border-radius: 4px; 
+            font-size: 0.95em;
+        }
+        
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 15px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.9em; cursor: pointer; }
+
+        .container { display: flex; gap: 30px; }
+        .column { flex: 1; background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
+        
+        .model-item { 
+            margin-bottom: 12px; 
+            padding: 12px; 
+            background: var(--bg-input);
+            border: 1px solid var(--border); 
+            border-radius: 6px; 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            transition: transform 0.1s;
+        }
+        .model-item:hover { border-color: var(--accent); }
+        
         .model-info { flex-grow: 1; }
-        .model-name { font-weight: bold; }
-        .model-id { font-size: 0.85em; color: #666; }
-        .model-pricing { font-size: 0.8em; color: #27ae60; font-family: monospace; }
-        input[type="checkbox"] { transform: scale(1.4); cursor: pointer; }
-        .btn-test { background-color: #9b59b6; color: white; border: none; padding: 5px 12px; font-size: 0.8em; border-radius: 4px; cursor: pointer; }
-        .btn-test:hover { background-color: #8e44ad; }
-        .btn-sync { background-color: #3498db; color: white; border: none; padding: 12px 40px; font-size: 1.1em; border-radius: 4px; cursor: pointer; }
-        .btn-sync:hover { background-color: #2980b9; }
-        .btn-refresh { background-color: #f39c12; color: white; border: none; padding: 8px 16px; font-size: 0.9em; border-radius: 4px; cursor: pointer; }
-        .btn-refresh:hover { background-color: #d68910; }
-        .sync-bar { position: sticky; bottom: 0; background: #2c3e50; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; margin-top: 20px; box-shadow: 0 -4px 10px rgba(0,0,0,0.2); }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        .search { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 1em; }
-        .sort-select { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em; }
-        .verifying-badge { display: inline-block; background-color: #e67e22; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; margin-left: 15px; animation: pulse 2s infinite; }
+        .model-name { font-weight: bold; font-size: 1.05em; display: flex; align-items: center; gap: 8px; }
+        .model-brand { font-size: 0.7em; background: var(--border); padding: 2px 6px; border-radius: 3px; text-transform: uppercase; color: var(--text-dim); }
+        .model-id { font-size: 0.8em; color: var(--text-dim); font-family: monospace; }
+        .model-pricing { font-size: 0.85em; color: var(--success); font-family: monospace; margin-top: 4px; }
+        
+        .capabilities { display: flex; gap: 5px; margin-top: 5px; }
+        .cap-tag { font-size: 0.65em; border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; color: var(--text-dim); }
+        .cap-tag.active { border-color: var(--accent); color: var(--accent); }
+
+        input[type="checkbox"] { transform: scale(1.3); cursor: pointer; accent-color: var(--accent); }
+        
+        button { cursor: pointer; border: none; border-radius: 4px; transition: opacity 0.2s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-test { background-color: var(--purple); color: white; padding: 6px 12px; font-size: 0.8em; }
+        .btn-sync { background-color: var(--accent); color: white; padding: 14px 50px; font-size: 1.1em; font-weight: bold; }
+        .btn-refresh { background-color: var(--warning); color: white; padding: 8px 16px; font-size: 0.9em; }
+
+        .sync-bar { 
+            position: sticky; 
+            bottom: 0; 
+            background: #000; 
+            padding: 20px; 
+            text-align: center; 
+            border-radius: 12px 12px 0 0; 
+            margin-top: 30px; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5); 
+            border: 1px solid var(--border);
+            border-bottom: none;
+        }
+
+        .count-badge { font-size: 0.8em; background: var(--accent); color: white; padding: 2px 8px; border-radius: 10px; margin-left: 10px; }
+
+        /* Animation for status change */
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .verifying { animation: pulse 2s infinite; color: var(--warning); }
     </style>
 </head>
 <body>
     <div class="header-actions">
         <h1>LiteLLM Model Manager</h1>
-        <div>
-            <button class="btn-refresh" onclick="forceRefresh()">Force Refresh & Verify</button>
+        <button class="btn-refresh" onclick="forceRefresh()">Force Refresh & Verify</button>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filter-panel">
+        <div class="filter-group">
+            <span class="filter-label">Wildcard Search</span>
+            <input type="text" id="globalSearch" placeholder="e.g. gemini*flash or /claude.*3/" onkeyup="applyAllFilters()">
+        </div>
+        
+        <div class="filter-group">
+            <span class="filter-label">Brand / Provider</span>
+            <select id="brandFilter" onchange="applyAllFilters()">
+                <option value="all">All Brands</option>
+                <option value="google">Google</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI</option>
+                <option value="meta">Meta (Llama)</option>
+                <option value="mistral">Mistral</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Max Price (per 1M)</span>
+            <input type="number" id="maxPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Capabilities</span>
+            <div class="checkbox-group">
+                <label class="checkbox-item"><input type="checkbox" id="capImage" onchange="applyAllFilters()"> Vision</label>
+                <label class="checkbox-item"><input type="checkbox" id="capAudio" onchange="applyAllFilters()"> Audio</label>
+            </div>
         </div>
     </div>
-    <p>Select models to explicitly include in your <code>config.yaml</code>. 
-       Use the <strong>Test</strong> button to verify credentials/availability against your region via the LiteLLM proxy.</p>
     
     <form action="/sync" method="post" id="syncForm">
         <div class="container">
             <div class="column">
-                <h2>OpenRouter Models (Live)</h2>
-                <div class="controls">
-                    <input type="text" class="search" placeholder="Search OpenRouter..." onkeyup="filterModels('orList', this.value)">
-                    <select class="sort-select" onchange="sortModels('orList', this.value)">
-                        <option value="name-asc">Name (A-Z)</option>
-                        <option value="name-desc">Name (Z-A)</option>
-                        <option value="price-asc">Price (Low-High)</option>
-                        <option value="price-desc">Price (High-Low)</option>
-                    </select>
-                </div>
+                <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
                 <div id="orList">
                     {% for m in or_models %}
-                    <div class="model-item" data-name="{{ m.name | lower }}" data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}" id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                    <div class="model-item" 
+                         data-name="{{ m.name | lower }}" 
+                         data-id="{{ m.id | lower }}"
+                         data-brand="{{ m.brand }}"
+                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                         data-image="{{ 'true' if m.capabilities.image_in else 'false' }}"
+                         data-audio="{{ 'true' if m.capabilities.audio_in else 'false' }}"
+                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
-                            <div class="model-name">{{ m.name }}</div>
+                            <div class="model-name">
+                                {{ m.name }} 
+                                <span class="model-brand">{{ m.brand }}</span>
+                            </div>
                             <div class="model-id">{{ m.id }}</div>
-                            <div class="model-pricing" title="${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }} per token">
-                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }} <small>(per 1M tokens)</small>
+                            <div class="model-pricing">
+                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                            </div>
+                            <div class="capabilities">
+                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
+                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -72,25 +191,27 @@
             </div>
             
             <div class="column">
-                <h2>Vertex AI Models (Regional)</h2>
-                <div class="controls">
-                    <input type="text" class="search" placeholder="Search Vertex..." onkeyup="filterModels('vxList', this.value)">
-                    <select class="sort-select" onchange="sortModels('vxList', this.value)">
-                        <option value="name-asc">Name (A-Z)</option>
-                        <option value="name-desc">Name (Z-A)</option>
-                        <option value="price-asc">Price (Low-High)</option>
-                        <option value="price-desc">Price (High-Low)</option>
-                    </select>
-                </div>
+                <h2>Vertex AI <span class="count-badge" id="vxCount">0</span></h2>
                 <div id="vxList">
                     {% for m in vx_models %}
-                    <div class="model-item" data-name="{{ m.name | lower }}" data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}" id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                    <div class="model-item" 
+                         data-name="{{ m.name | lower }}" 
+                         data-id="{{ m.id | lower }}"
+                         data-brand="google"
+                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                         data-image="{{ 'true' if m.capabilities.image_in else 'false' }}"
+                         data-audio="{{ 'true' if m.capabilities.audio_in else 'false' }}"
+                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
                             <div class="model-name">{{ m.name }}</div>
                             <div class="model-id">{{ m.id }}</div>
-                            <div class="model-pricing" title="${{ "%.8f"|format(m.pricing.prompt) }} / ${{ "%.8f"|format(m.pricing.completion) }} per token">
-                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }} <small>(per 1M tokens)</small>
+                            <div class="model-pricing">
+                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                            </div>
+                            <div class="capabilities">
+                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
+                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -101,43 +222,71 @@
         </div>
 
         <div class="sync-bar">
-            <button type="submit" class="btn-sync">Update LiteLLM Config</button>
-            <button type="button" class="btn-refresh" style="margin-left: 20px;" onclick="restartLiteLLM()">Restart LiteLLM Service</button>
-            <div style="font-size: 0.7em; color: #95a5a6; margin-top: 10px;">
+            <button type="submit" class="btn-sync">Apply to LiteLLM Config</button>
+            <button type="button" class="btn-refresh" style="margin-left: 20px;" onclick="restartLiteLLM()">Restart Proxy</button>
+            <div style="font-size: 0.75em; color: var(--text-dim); margin-top: 12px;">
                 Version: {{ version[:7] if version else 'dev' }} | Build: {{ build_time }}
             </div>
         </div>
     </form>
 
     <script>
-        function filterModels(listId, query) {
-            const list = document.getElementById(listId);
-            const items = list.getElementsByClassName('model-item');
-            const q = query.toLowerCase();
-            for (let item of items) {
-                const text = item.innerText.toLowerCase();
-                item.style.display = text.includes(q) ? 'flex' : 'none';
-            }
-        }
+        function applyAllFilters() {
+            const query = document.getElementById('globalSearch').value.toLowerCase();
+            const brand = document.getElementById('brandFilter').value;
+            const maxPrice = parseFloat(document.getElementById('maxPrice').value) || Infinity;
+            const vision = document.getElementById('capImage').checked;
+            const audio = document.getElementById('capAudio').checked;
 
-        function sortModels(listId, criteria) {
-            const list = document.getElementById(listId);
-            const items = Array.from(list.getElementsByClassName('model-item'));
-            
-            items.sort((a, b) => {
-                if (criteria === 'name-asc') {
-                    return a.dataset.name.localeCompare(b.dataset.name);
-                } else if (criteria === 'name-desc') {
-                    return b.dataset.name.localeCompare(a.dataset.name);
-                } else if (criteria === 'price-asc') {
-                    return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
-                } else if (criteria === 'price-desc') {
-                    return parseFloat(b.dataset.price) - parseFloat(a.dataset.price);
+            // Prepare Wildcard/Regex
+            let regex = null;
+            if (query) {
+                try {
+                    if (query.startsWith('/') && query.endsWith('/')) {
+                        regex = new RegExp(query.slice(1, -1), 'i');
+                    } else {
+                        // Convert wildcard * to .* for regex
+                        const pattern = query.replace(/\*/g, '.*');
+                        regex = new RegExp(pattern, 'i');
+                    }
+                } catch(e) { regex = null; }
+            }
+
+            let counts = { or: 0, vx: 0 };
+
+            document.querySelectorAll('.model-item').forEach(item => {
+                const name = item.dataset.name;
+                const id = item.dataset.id;
+                const iBrand = item.dataset.brand;
+                const iPrice = parseFloat(item.dataset.price);
+                const iVision = item.dataset.image === 'true';
+                const iAudio = item.dataset.audio === 'true';
+
+                let visible = true;
+
+                // Search Filter
+                if (regex) {
+                    visible = regex.test(name) || regex.test(id);
+                } else if (query) {
+                    visible = name.includes(query) || id.includes(query);
+                }
+
+                // Spec Filters
+                if (visible && brand !== 'all' && iBrand !== brand) visible = false;
+                if (visible && iPrice > maxPrice) visible = false;
+                if (visible && vision && !iVision) visible = false;
+                if (visible && audio && !iAudio) visible = false;
+
+                item.style.display = visible ? 'flex' : 'none';
+                
+                if (visible) {
+                    if (item.closest('#orList')) counts.or++;
+                    else counts.vx++;
                 }
             });
 
-            // Re-append items in new order
-            items.forEach(item => list.appendChild(item));
+            document.getElementById('orCount').innerText = counts.or;
+            document.getElementById('vxCount').innerText = counts.vx;
         }
 
         async function testModel(modelId) {
@@ -145,94 +294,55 @@
             const item = document.getElementById(safeId);
             const btn = item.querySelector('.btn-test');
             const originalText = btn.innerText;
-            
-            btn.innerText = '...';
-            btn.disabled = true;
+            btn.innerText = '...'; btn.disabled = true;
 
             try {
                 const formData = new FormData();
                 formData.append('model_id', modelId);
                 const resp = await fetch('/test', { method: 'POST', body: formData });
                 const result = await resp.json();
-                
                 if (result.status === 'success') {
-                    btn.innerText = 'OK';
-                    btn.style.backgroundColor = '#2ecc71';
-                    btn.disabled = false;
-                    return;
+                    btn.innerText = 'OK'; btn.style.backgroundColor = 'var(--success)';
                 } else {
-                    btn.innerText = 'FAIL';
-                    btn.style.backgroundColor = '#e74c3c';
-                    console.error('Test Failed:', result.message);
-                    alert(`Test failed for ${modelId}: ${result.code || 'Error'}`);
+                    btn.innerText = 'FAIL'; btn.style.backgroundColor = 'var(--danger)';
+                    console.error(result.message);
                 }
-            } catch (e) {
-                btn.innerText = 'ERR';
-                btn.style.backgroundColor = '#e74c3c';
-            } finally {
+            } catch (e) { btn.innerText = 'ERR'; }
+            finally {
                 if (btn.innerText !== 'OK') {
-                    setTimeout(() => {
-                        btn.innerText = originalText;
-                        btn.disabled = false;
-                        btn.style.backgroundColor = '';
-                    }, 3000);
+                    setTimeout(() => { btn.innerText = originalText; btn.disabled = false; btn.style.backgroundColor = ''; }, 3000);
                 }
             }
         }
 
         async function forceRefresh() {
-            if (!confirm('This will fetch the latest models from OpenRouter and Vertex APIs. Proceed?')) return;
-            
+            if (!confirm('Fetch latest models?')) return;
             const btn = document.querySelector('.btn-refresh');
-            btn.innerText = 'Refreshing...';
-            btn.disabled = true;
-
+            btn.innerText = 'Refreshing...'; btn.disabled = true;
             try {
                 const resp = await fetch('/force-refresh', { method: 'POST' });
-                const result = await resp.json();
-                if (result.status === 'success') {
-                    window.location.reload();
-                }
-            } catch (e) {
-                alert('Error starting refresh.');
-                btn.innerText = 'Force Refresh & Verify';
-                btn.disabled = false;
-            }
+                if (resp.ok) window.location.reload();
+            } catch (e) { alert('Error'); btn.innerText = 'Force Refresh & Verify'; btn.disabled = false; }
+        }
+
+        async function restartLiteLLM() {
+            if (!confirm('Restart Proxy?')) return;
+            try {
+                const resp = await fetch('/restart-litellm', { method: 'POST' });
+                if (resp.ok) alert('Restarting...');
+            } catch (e) { alert('Error'); }
         }
 
         document.getElementById('syncForm').onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const resp = await fetch('/sync', {
-                method: 'POST',
-                body: formData
-            });
+            const resp = await fetch('/sync', { method: 'POST', body: formData });
             const result = await resp.json();
-            if (result.status === 'success') {
-                alert(`Successfully updated LiteLLM with ${result.updated_models} models! Click "Restart LiteLLM Service" to apply changes.`);
-            } else {
-                alert('Error updating configuration.');
-            }
+            if (result.status === 'success') alert(`Updated ${result.updated_models} models!`);
         };
 
-        async function restartLiteLLM() {
-            if (!confirm('Restart the LiteLLM proxy container? This will cause a brief service interruption.')) return;
-            try {
-                const resp = await fetch('/restart-litellm', { method: 'POST' });
-                const result = await resp.json();
-                if (result.status === 'success') {
-                    alert('LiteLLM service is restarting...');
-                } else {
-                    alert('Error restarting service: ' + result.message);
-                }
-            } catch (e) {
-                alert('Error connecting to manager.');
-            }
-        }
-
-        // Trigger initial sort
-        sortModels('orList', 'name-asc');
-        sortModels('vxList', 'name-asc');
+        // Init
+        applyAllFilters();
     </script>
 </body>
 </html>
