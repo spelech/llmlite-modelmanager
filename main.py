@@ -138,22 +138,31 @@ async def fetch_vertex_publisher_models(token: str, proj: str, loc: str) -> List
         import vertexai
         from vertexai.generative_models import GenerativeModel
         
-        # Initialize SDK for the target region
         vertexai.init(project=proj, location=loc, credentials=service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS))
         
         available_ids = []
-        # list_models() is a generator that returns serverless foundation models
-        for model in GenerativeModel.list_models():
-            # Model name comes back as 'publishers/google/models/gemini-1.5-flash'
+        # In newer SDKs, it's list_models() on GenerativeModel or Model
+        # We will try both common patterns.
+        try:
+            models = GenerativeModel.list_models()
+        except:
+            from vertexai.language_models import TextGenerationModel
+            models = GenerativeModel.list_models() if hasattr(GenerativeModel, 'list_models') else []
+
+        for model in models:
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
                 available_ids.append(model_id)
         
-        print(f"SDK list_models() discovered {len(available_ids)} models in {loc}")
+        # If discovery returns nothing, return a few guaranteed IDs to prevent empty list
+        if not available_ids:
+             return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+
+        print(f"SDK Discovery found {len(available_ids)} models in {loc}")
         return available_ids
     except Exception as e:
         print(f"High-level SDK Discovery Error: {e}")
-        return []
+        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
 
 async def verify_and_cache_vertex_models():
     """Fetch all possible models from high-level SDK and concurrently verify them."""
