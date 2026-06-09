@@ -142,7 +142,17 @@
         </div>
 
         <div class="filter-group">
-            <span class="filter-label">Max Price (per 1M)</span>
+            <span class="filter-label">Max In Price (1M)</span>
+            <input type="number" id="maxInPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Max Out Price (1M)</span>
+            <input type="number" id="maxOutPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Max Total (1M)</span>
             <input type="number" id="maxPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
         </div>
 
@@ -166,6 +176,8 @@
                          data-id="{{ m.id | lower }}"
                          data-brand="{{ m.brand }}"
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                         data-in-price="{{ m.pricing.prompt_1m }}"
+                         data-out-price="{{ m.pricing.completion_1m }}"
                          data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
                          data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
@@ -199,6 +211,8 @@
                          data-id="{{ m.id | lower }}"
                          data-brand="google"
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                         data-in-price="{{ m.pricing.prompt_1m }}"
+                         data-out-price="{{ m.pricing.completion_1m }}"
                          data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
                          data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
@@ -235,6 +249,8 @@
             const query = document.getElementById('globalSearch').value.toLowerCase();
             const brand = document.getElementById('brandFilter').value;
             const maxPrice = parseFloat(document.getElementById('maxPrice').value) || Infinity;
+            const maxInPrice = parseFloat(document.getElementById('maxInPrice').value) || Infinity;
+            const maxOutPrice = parseFloat(document.getElementById('maxOutPrice').value) || Infinity;
             const vision = document.getElementById('capImage').checked;
             const audio = document.getElementById('capAudio').checked;
 
@@ -259,6 +275,8 @@
                 const id = item.dataset.id;
                 const iBrand = item.dataset.brand;
                 const iPrice = parseFloat(item.dataset.price);
+                const iInPrice = parseFloat(item.dataset.inPrice);
+                const iOutPrice = parseFloat(item.dataset.outPrice);
                 const iVision = item.dataset.image === 'true';
                 const iAudio = item.dataset.audio === 'true';
 
@@ -274,6 +292,8 @@
                 // Spec Filters
                 if (visible && brand !== 'all' && iBrand !== brand) visible = false;
                 if (visible && iPrice > maxPrice) visible = false;
+                if (visible && iInPrice > maxInPrice) visible = false;
+                if (visible && iOutPrice > maxOutPrice) visible = false;
                 if (visible && vision && !iVision) visible = false;
                 if (visible && audio && !iAudio) visible = false;
 
@@ -288,6 +308,31 @@
             document.getElementById('orCount').innerText = counts.or;
             document.getElementById('vxCount').innerText = counts.vx;
         }
+
+        function populateBrands() {
+            const brands = new Set();
+            document.querySelectorAll('.model-item').forEach(item => {
+                if (item.dataset.brand) brands.add(item.dataset.brand);
+            });
+            const select = document.getElementById('brandFilter');
+            const currentBrand = select.value;
+            
+            // Clear existing except "All"
+            select.innerHTML = '<option value="all">All Brands</option>';
+            
+            Array.from(brands).sort().forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                opt.innerText = b.charAt(0).toUpperCase() + b.slice(1);
+                select.appendChild(opt);
+            });
+            select.value = currentBrand;
+        }
+
+        window.onload = () => {
+            populateBrands();
+            applyAllFilters();
+        };
 
         async function testModel(modelId) {
             const safeId = 'item-' + modelId.replaceAll('/', '-').replaceAll('.', '-');
