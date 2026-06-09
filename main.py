@@ -333,14 +333,28 @@ async def sync_models(request: Request):
     with open(CONFIG_PATH, "r") as f: config = yaml.safe_load(f) or {}
     new_model_list = []
     for mid in selected_ids:
-        entry = {"model_name": mid.split("/")[-1], "litellm_params": {"model": mid}}
-        if mid.startswith("openrouter/"): entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
+        m_data = model_map.get(mid, {})
+        pricing = m_data.get("pricing", {})
+        entry = {
+            "model_name": mid.split("/")[-1],
+            "litellm_params": {"model": mid},
+            "model_info": {
+                "id": mid,
+                "input_cost_per_token": pricing.get("prompt", 0),
+                "output_cost_per_token": pricing.get("completion", 0)
+            }
+        }
+        if mid.startswith("openrouter/"):
+            entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
                 "vertex_project": "os.environ/VERTEX_PROJECT",
                 "vertex_location": "os.environ/VERTEX_LOCATION",
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
+            # For Vertex, also provide character-based pricing as it's common for Gemini
+            entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
+            entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
         new_model_list.append(entry)
     wildcards = [m for m in config.get("model_list", []) if "*" in m.get("model_name", "")]
     config["model_list"] = new_model_list + wildcards
