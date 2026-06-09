@@ -93,20 +93,77 @@
         button:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .btn-test { background-color: var(--purple); color: white; padding: 6px 12px; font-size: 0.8em; }
-        .btn-sync { background-color: var(--accent); color: white; padding: 14px 50px; font-size: 1.1em; font-weight: bold; }
         .btn-refresh { background-color: var(--warning); color: white; padding: 8px 16px; font-size: 0.9em; }
 
-        .sync-bar { 
-            position: sticky; 
-            bottom: 0; 
-            background: #000; 
-            padding: 20px; 
-            text-align: center; 
-            border-radius: 12px 12px 0 0; 
-            margin-top: 30px; 
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.5); 
+        /* Floating Action Buttons */
+        .fab-group {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .fab-container {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+        }
+
+        .fab-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            font-weight: bold;
+        }
+
+        .fab-btn:hover { transform: scale(1.1); }
+        .fab-btn.primary { background-color: var(--accent); }
+        .fab-btn.secondary { 
+            background-color: var(--warning); 
+            width: 50px; 
+            height: 50px; 
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+
+        .fab-label {
+            position: absolute;
+            right: 75px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
             border: 1px solid var(--border);
-            border-bottom: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .fab-container:hover .fab-label { opacity: 1; }
+
+        .version-footer {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 0.65em;
+            color: var(--text-dim);
+            opacity: 0.4;
+            pointer-events: none;
         }
 
         .count-badge { font-size: 0.8em; background: var(--accent); color: white; padding: 2px 8px; border-radius: 10px; margin-left: 10px; }
@@ -235,12 +292,19 @@
             </div>
         </div>
 
-        <div class="sync-bar">
-            <button type="submit" class="btn-sync">Apply to LiteLLM Config</button>
-            <button type="button" class="btn-refresh" style="margin-left: 20px;" onclick="restartLiteLLM()">Restart Proxy</button>
-            <div style="font-size: 0.75em; color: var(--text-dim); margin-top: 12px;">
-                Version: {{ version[:7] if version else 'dev' }} | Build: {{ build_time }}
+        <div class="fab-group">
+            <div class="fab-container">
+                <span class="fab-label">Restart LiteLLM Proxy</span>
+                <button type="button" class="fab-btn secondary" onclick="restartLiteLLM()">RESTART</button>
             </div>
+            <div class="fab-container">
+                <span class="fab-label">Apply to LiteLLM Config</span>
+                <button type="submit" class="fab-btn primary">SYNC</button>
+            </div>
+        </div>
+
+        <div class="version-footer">
+            v{{ version[:7] if version else 'dev' }} | {{ build_time }}
         </div>
     </form>
 
