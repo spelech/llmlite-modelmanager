@@ -236,7 +236,7 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
         for model in client_genai.models.list():
             model_id = model.name.split("/")[-1]
             if "gemini" in model_id.lower():
-                available_ids.append(model_id)
+                print(f"DEBUG: Found model: {model.name}"); available_ids.append(model_id)
         
         available_ids.extend([
             "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest",
