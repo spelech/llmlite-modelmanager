@@ -356,8 +356,7 @@ async def sync_models(request: Request):
             entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
             entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
         new_model_list.append(entry)
-    wildcards = [m for m in config.get("model_list", []) if "*" in m.get("model_name", "")]
-    config["model_list"] = new_model_list + wildcards
+    config["model_list"] = new_model_list
     with open(CONFIG_PATH, "w") as f: yaml.safe_dump(config, f, sort_keys=False)
     return {"status": "success", "updated_models": len(new_model_list)}
 
