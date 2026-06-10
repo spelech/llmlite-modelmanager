@@ -335,8 +335,8 @@ async def sync_models(request: Request):
     for mid in selected_ids:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
-        # Attempt to get context window; handle both string and int types
-        ctx = m_data.get("context_length") or m_data.get("max_tokens")
+        # Get context window and other metadata
+        ctx = m_data.get("context_length")
         try:
             ctx_int = int(ctx)
         except (TypeError, ValueError):
@@ -353,6 +353,12 @@ async def sync_models(request: Request):
         }
         if ctx_int:
             entry["model_info"]["max_input_tokens"] = ctx_int
+        
+        # Add additional metadata if available
+        if "capabilities" in m_data:
+            entry["model_info"]["capabilities"] = m_data["capabilities"]
+        if "brand" in m_data:
+            entry["model_info"]["brand"] = m_data["brand"]
         if mid.startswith("openrouter/"):
             entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
         elif mid.startswith("vertex_ai/"):
