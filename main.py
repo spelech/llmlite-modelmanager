@@ -422,7 +422,7 @@ async def debug_publisher_models():
     token = get_google_access_token()
     if not token: return {"error": "No token"}
     # Correct URL structure
-    url = f"https://{DEFAULT_LOCATION}-aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models"
+    url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
         try:
