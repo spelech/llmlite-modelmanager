@@ -190,61 +190,53 @@
 </head>
 <body>
     <header>
-    <h1>LiteLLM Model Manager</h1>
-    <div class="header-version">Version: {{ version }} | Build: {{ build_time }}</div>
-</header>
-<style>
-    header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--border); }
-    .header-version { font-size: 0.8em; color: var(--text-dim); }
-</style>
-    <div class="header-actions">
         <h1>LiteLLM Model Manager</h1>
-        <button class="btn-refresh" onclick="forceRefresh()">Force Refresh & Verify</button>
-    </div>
-
-    <!-- Filters Section -->
-    <div class="filter-panel">
-        <div class="filter-group">
-            <span class="filter-label">Wildcard Search</span>
-            <input type="text" id="globalSearch" placeholder="e.g. gemini*flash or /claude.*3/" onkeyup="applyAllFilters()">
+        <div class="header-actions">
+            <button type="button" class="btn-refresh" onclick="forceRefresh()">Force Metadata Refresh</button>
+            <div class="header-version">v{{ version }} | {{ build_time }}</div>
         </div>
-        
-        <div class="filter-group">
-            <span class="filter-label">Brand / Provider</span>
-            <select id="brandFilter" onchange="applyAllFilters()">
-                <option value="all">All Brands</option>
-                <option value="google">Google</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI</option>
-                <option value="meta">Meta (Llama)</option>
-                <option value="mistral">Mistral</option>
-            </select>
-        </div>
+    </header>
 
-        <div class="filter-group">
-            <span class="filter-label">Max In Price (1M)</span>
-            <input type="number" id="maxInPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
-        </div>
+    <div class="main-layout">
+        <div class="sidebar">
+            <h2>Filters</h2>
+            <div class="filter-group">
+                <span class="filter-label">Wildcard Search</span>
+                <input type="text" id="globalSearch" placeholder="e.g. gemini*flash" onkeyup="applyAllFilters()">
+            </div>
 
-        <div class="filter-group">
-            <span class="filter-label">Max Out Price (1M)</span>
-            <input type="number" id="maxOutPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
-        </div>
+            <div class="filter-group" style="margin-top: 20px;">
+                <span class="filter-label">Brand</span>
+                <select id="brandFilter" onchange="applyAllFilters()">
+                    <option value="all">All Brands</option>
+                </select>
+            </div>
 
-        <div class="filter-group">
-            <span class="filter-label">Capabilities</span>
-            <div class="checkbox-group">
-                <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vis In</label>
-                <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vis Out</label>
-                <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Aud In</label>
-                <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Aud Out</label>
-                <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Func</label>
-                <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
+            <div class="filter-group" style="margin-top: 20px;">
+                <span class="filter-label">Max In Price (1M)</span>
+                <input type="number" id="maxInPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+            </div>
+
+            <div class="filter-group" style="margin-top: 20px;">
+                <span class="filter-label">Max Out Price (1M)</span>
+                <input type="number" id="maxOutPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+            </div>
+
+            <div class="filter-group" style="margin-top: 20px;">
+                <span class="filter-label">Capabilities</span>
+                <div class="checkbox-group" style="flex-direction: column; gap: 10px;">
+                    <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vis In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vis Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Aud In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Aud Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Func</label>
+                    <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <form action="/sync" method="post" id="syncForm">
+
+        <div class="content-area">
+            <form action="/sync" method="post" id="syncForm" style="height: 100%;">
         <div class="container">
             <div class="column">
                 <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
