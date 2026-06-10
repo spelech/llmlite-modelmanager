@@ -400,7 +400,7 @@ async def get_config():
             selected_ids = [m.get("litellm_params", {}).get("model") for m in model_list if m.get("litellm_params", {}).get("model")]
             return {"selected_ids": selected_ids}
     except Exception as e:
-        return {"error": str(e)}
+        print(f"DEBUG: URL={url}"); return {"error": str(e)}
 
 
 
@@ -431,7 +431,7 @@ async def debug_publisher_models():
                 return [m.get("name") for m in resp.json().get("models", [])]
             return {"error": resp.text}
         except Exception as e:
-            return {"error": str(e)}
+            print(f"DEBUG: URL={url}"); return {"error": str(e)}
 
 
 
