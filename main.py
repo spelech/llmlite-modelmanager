@@ -42,7 +42,16 @@ templates = Jinja2Templates(directory="app/templates")
 
 # Fallback pricing table for 2026 Gemini models
 FALLBACK_PRICING = {
-    "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30}
+    "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-3.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
+    "gemini-2.5-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
+    "gemini-2.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-2.0-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
+    "gemini-1.5-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
+    "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+}
 
 GEMINI_SPECS = {
     "gemini-2.5-pro": {"ctx": 2000000, "out": 8192},
@@ -52,16 +61,6 @@ GEMINI_SPECS = {
     "gemini-2.0-flash-exp": {"ctx": 1048576, "out": 8192},
     "gemini-1.5-pro": {"ctx": 2097152, "out": 8192},
     "gemini-1.5-flash": {"ctx": 1048576, "out": 8192},
-}
-,
-    "gemini-3.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
-    "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
-    "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
-    "gemini-2.5-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
-    "gemini-2.5-flash-lite": {"prompt_1m": 0.05, "completion_1m": 0.20},
-    "gemini-2.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
-    "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
-    "gemini-1.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
 }
 
 def extract_capabilities(description: str, model_id: str) -> Dict[str, bool]:
