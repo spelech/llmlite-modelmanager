@@ -245,7 +245,7 @@ async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, p
         available_ids.extend([
             "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest",
             "gemini-2.0-flash-exp", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest",
-            "gemini-3.5-flash"
+            "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro"
         ])
         return list(set(available_ids))
     except Exception as e:
