@@ -193,7 +193,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                     name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
                     if name_parts.startswith("Gemini"):
                         model_name = name_parts
-                        short_id = model_name.lower().replace(" ", "-"); print(f"DEBUG: name={model_name}, id={short_id}")
+                        short_id = model_name.lower().replace(" ", "-")
                         if short_id not in models_data:
                             # Fetch metadata separately
                             meta = await fetch_vertex_model_metadata(f"vertex_ai/{short_id}")
@@ -206,11 +206,11 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                                 "max_output_tokens": meta.get("max_output_tokens", 0),
                                 "capabilities": extract_capabilities(desc, short_id)
                             }
-
+                        
                         pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
                         rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
                         price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
-
+                        
                         if "Input" in desc:
                             models_data[short_id]["pricing"]["prompt"] = price_usd
                             models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
