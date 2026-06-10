@@ -183,6 +183,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
             models_data = {}
 
             for s in skus:
+                short_id = ''
                 desc = s.get("description", "")
                 regions = s.get("serviceRegions", [])
 
