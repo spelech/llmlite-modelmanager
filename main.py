@@ -113,8 +113,33 @@ def get_google_access_token():
         print(f"Error getting Google token: {e}")
         return None
 
+async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
+    """Fetch model metadata from Vertex AI API."""
+    token = get_google_access_token()
+    if not token:
+        return {}
+
+    # Vertex model ID format needs to be 'publishers/google/models/{MODEL_ID}'
+    # We have 'vertex_ai/{short_id}'
+    short_id = model_id.split("/")[-1]
+    url = f"https://{DEFAULT_LOCATION}-aiplatform.googleapis.com/v1/publishers/google/models/{short_id}"
+
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "max_input_tokens": int(data.get("inputTokenLimit", 0)),
+                    "max_output_tokens": int(data.get("outputTokenLimit", 0))
+                }
+        except Exception:
+            pass
+    return {}
+
 async def fetch_vertex_billing_skus() -> List[Dict]:
-    """Fetch all Vertex AI Gemini SKUs with capabilities."""
+    """Fetch all Vertex AI Gemini SKUs with capabilities and metadata."""
     loc = DEFAULT_LOCATION
     token = get_google_access_token()
     if not token:
@@ -127,14 +152,14 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
             resp = await client.get(url, headers=headers)
             if resp.status_code != 200:
                 return []
-            
+
             skus = resp.json().get("skus", [])
             models_data = {}
-            
+
             for s in skus:
                 desc = s.get("description", "")
                 regions = s.get("serviceRegions", [])
-                
+
                 if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
                     if any(x in desc for x in ["High Priority", "Provisioned", "Commitment", "Reserved"]):
                         continue
@@ -144,19 +169,22 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                         model_name = name_parts
                         short_id = model_name.lower().replace(" ", "-")
                         if short_id not in models_data:
+                            # Fetch metadata separately
+                            meta = await fetch_vertex_model_metadata(f"vertex_ai/{short_id}")
                             models_data[short_id] = {
                                 "id": f"vertex_ai/{short_id}",
                                 "name": model_name,
                                 "brand": "google",
                                 "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
-                                "context_length": "Variable",
+                                "context_length": meta.get("max_input_tokens", 0),
+                                "max_output_tokens": meta.get("max_output_tokens", 0),
                                 "capabilities": extract_capabilities(desc, short_id)
                             }
-                        
+
                         pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
                         rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
                         price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
-                        
+
                         if "Input" in desc:
                             models_data[short_id]["pricing"]["prompt"] = price_usd
                             models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
