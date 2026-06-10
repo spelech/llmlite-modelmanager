@@ -443,7 +443,7 @@ async def debug_publisher_models():
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
         # Get context window and other metadata
-        ctx = m_data.get("context_length")
+        ctx = m_data.get("context_length"); print(f"DEBUG: mid={mid}, ctx={ctx}")
         max_out = m_data.get("max_output_tokens") or m_data.get("max_completion_tokens")
         
         try:
