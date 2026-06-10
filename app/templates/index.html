@@ -216,6 +216,7 @@
                 <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Aud In</label>
                 <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Aud Out</label>
                 <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Func</label>
+                <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
             </div>
         </div>
     </div>
@@ -337,6 +338,7 @@
             const audIn = document.getElementById('capAudioIn').checked;
             const audOut = document.getElementById('capAudioOut').checked;
             const func = document.getElementById('capFunc').checked;
+            const onlySelected = document.getElementById('filterSelected').checked;
 
             // Prepare Wildcard/Regex
             let regex = null;
@@ -365,6 +367,7 @@
                 const iAudIn = item.dataset.audioIn === 'true';
                 const iAudOut = item.dataset.audioOut === 'true';
                 const iFunc = item.dataset.func === 'true';
+                const isSelected = item.querySelector('input[type="checkbox"]').checked;
 
                 let visible = true;
 
@@ -384,6 +387,7 @@
                 if (visible && audIn && !iAudIn) visible = false;
                 if (visible && audOut && !iAudOut) visible = false;
                 if (visible && func && !iFunc) visible = false;
+                if (visible && onlySelected && !isSelected) visible = false;
 
                 item.style.display = visible ? 'flex' : 'none';
                 
