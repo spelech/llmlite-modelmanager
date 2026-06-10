@@ -211,8 +211,11 @@
         <div class="filter-group">
             <span class="filter-label">Capabilities</span>
             <div class="checkbox-group">
-                <label class="checkbox-item"><input type="checkbox" id="capImage" onchange="applyAllFilters()"> Vision</label>
-                <label class="checkbox-item"><input type="checkbox" id="capAudio" onchange="applyAllFilters()"> Audio</label>
+                <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vis In</label>
+                <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vis Out</label>
+                <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Aud In</label>
+                <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Aud Out</label>
+                <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Func</label>
             </div>
         </div>
     </div>
@@ -230,8 +233,11 @@
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
                          data-in-price="{{ m.pricing.prompt_1m }}"
                          data-out-price="{{ m.pricing.completion_1m }}"
-                         data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
-                         data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
@@ -272,8 +278,11 @@
                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
                          data-in-price="{{ m.pricing.prompt_1m }}"
                          data-out-price="{{ m.pricing.completion_1m }}"
-                         data-image="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
-                         data-audio="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
@@ -323,8 +332,11 @@
             const brand = document.getElementById('brandFilter').value;
             const maxInPrice = parseFloat(document.getElementById('maxInPrice').value) || Infinity;
             const maxOutPrice = parseFloat(document.getElementById('maxOutPrice').value) || Infinity;
-            const vision = document.getElementById('capImage').checked;
-            const audio = document.getElementById('capAudio').checked;
+            const imgIn = document.getElementById('capImageIn').checked;
+            const imgOut = document.getElementById('capImageOut').checked;
+            const audIn = document.getElementById('capAudioIn').checked;
+            const audOut = document.getElementById('capAudioOut').checked;
+            const func = document.getElementById('capFunc').checked;
 
             // Prepare Wildcard/Regex
             let regex = null;
@@ -348,8 +360,11 @@
                 const iBrand = item.dataset.brand;
                 const iInPrice = parseFloat(item.dataset.inPrice);
                 const iOutPrice = parseFloat(item.dataset.outPrice);
-                const iVision = item.dataset.image === 'true';
-                const iAudio = item.dataset.audio === 'true';
+                const iImgIn = item.dataset.imageIn === 'true';
+                const iImgOut = item.dataset.imageOut === 'true';
+                const iAudIn = item.dataset.audioIn === 'true';
+                const iAudOut = item.dataset.audioOut === 'true';
+                const iFunc = item.dataset.func === 'true';
 
                 let visible = true;
 
@@ -364,8 +379,11 @@
                 if (visible && brand !== 'all' && iBrand !== brand) visible = false;
                 if (visible && iInPrice > maxInPrice) visible = false;
                 if (visible && iOutPrice > maxOutPrice) visible = false;
-                if (visible && vision && !iVision) visible = false;
-                if (visible && audio && !iAudio) visible = false;
+                if (visible && imgIn && !iImgIn) visible = false;
+                if (visible && imgOut && !iImgOut) visible = false;
+                if (visible && audIn && !iAudIn) visible = false;
+                if (visible && audOut && !iAudOut) visible = false;
+                if (visible && func && !iFunc) visible = false;
 
                 item.style.display = visible ? 'flex' : 'none';
                 
