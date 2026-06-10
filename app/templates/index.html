@@ -322,10 +322,14 @@
             </div>
         </div>
 
-        <div class="version-footer">
-            v{{ version[:7] if version else 'dev' }} | {{ build_time }}
-        </div>
-    </form>
+    <header>
+    <h1>LiteLLM Model Manager</h1>
+    <div class="header-version">Version: {{ version }} | Build: {{ build_time }}</div>
+</header>
+<style>
+    header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--border); }
+    .header-version { font-size: 0.8em; color: var(--text-dim); }
+</style>
 
     <script>
         function applyAllFilters() {

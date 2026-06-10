@@ -19,7 +19,12 @@ PROXY_URL = "http://litellm:4000/v1/chat/completions"
 MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "sk-local-wileyriley-gateway-12345")
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
-APP_VERSION = os.environ.get("APP_VERSION", "dev")
+# App Versioning
+if os.path.exists("VERSION"):
+    with open("VERSION", "r") as f:
+        APP_VERSION = f.read().strip()
+else:
+    APP_VERSION = os.environ.get("APP_VERSION", "dev")
 APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
 # Vertex defaults
