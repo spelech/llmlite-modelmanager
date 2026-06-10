@@ -412,21 +412,23 @@ async def get_config():
 
 
 
+
 @app.get("/debug-publisher-models")
 async def debug_publisher_models():
     token = get_google_access_token()
     if not token: return {"error": "No token"}
-    # Correct URL structure
     url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
+                # Return only models with "gemini" in their name
+                return [m.get("name") for m in resp.json().get("models", []) if "gemini" in m.get("name", "").lower()]
             return {"error": resp.text}
         except Exception as e:
-            print(f"DEBUG: URL={url}"); return {"error": str(e)}
+            return {"error": str(e)}
+
 
 
 
