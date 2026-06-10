@@ -335,6 +335,13 @@ async def sync_models(request: Request):
     for mid in selected_ids:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
+        # Attempt to get context window; handle both string and int types
+        ctx = m_data.get("context_length") or m_data.get("max_tokens")
+        try:
+            ctx_int = int(ctx)
+        except (TypeError, ValueError):
+            ctx_int = None
+            
         entry = {
             "model_name": mid.split("/")[-1],
             "litellm_params": {"model": mid},
@@ -344,6 +351,8 @@ async def sync_models(request: Request):
                 "output_cost_per_token": pricing.get("completion", 0)
             }
         }
+        if ctx_int:
+            entry["model_info"]["max_input_tokens"] = ctx_int
         if mid.startswith("openrouter/"):
             entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
         elif mid.startswith("vertex_ai/"):
