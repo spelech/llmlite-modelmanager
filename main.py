@@ -173,10 +173,9 @@ async def fetch_vertex_billing_skus() -> Dict[str, Dict]:
                 elif "Output" in desc: pricing_map[model_key]["completion_1m"] = price_usd * 1_000_000
             
             return pricing_map
-    except: return {}
     except Exception as e:
         print(f"Error fetching Vertex SKUs: {e}")
-        return []
+        return {}
 
 async def fetch_vertex_publisher_models() -> List[str]:
     """List all available foundation models in the region using GenAI SDK."""
