@@ -404,63 +404,34 @@ async def get_config():
 
 
 
-@app.get("/debug-publisher-models")
-async def debug_publisher_models():
-    token = get_google_access_token()
-    if not token: return {"error": "No token"}
-    # The correct URL to list models in a publisher
-    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
-            return {"error": resp.text}
-        except Exception as e:
-            return {"error": str(e)}
 
 
 
-@app.get("/debug-publisher-models")
-async def debug_publisher_models():
-    token = get_google_access_token()
-    if not token: return {"error": "No token"}
-    # The correct URL to list models in a publisher
-    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
-            return {"error": resp.text}
-        except Exception as e:
-            return {"error": str(e)}
 
 
 
-@app.get("/debug-publisher-models")
-async def debug_publisher_models():
-    token = get_google_access_token()
-    if not token: return {"error": "No token"}
-    # The correct URL to list models in a publisher
-    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
-            return {"error": resp.text}
-        except Exception as e:
-            return {"error": str(e)}
 
 
 async def sync_models(request: Request):
     form_data = await request.form()
     selected_ids = form_data.getlist("models")
     all_models = app_state["or_models"] + app_state["vx_models"]
+
+@app.get("/debug-publisher-models")
+async def debug_publisher_models():
+    token = get_google_access_token()
+    if not token: return {"error": "No token"}
+    url = f"https://{DEFAULT_LOCATION}-aiplatform.googleapis.com/v1/publishers/google/models"
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                return [m.get("name") for m in resp.json().get("models", [])]
+            return {"error": resp.text}
+        except Exception as e:
+            return {"error": str(e)}
+
     model_map = {m["id"]: m for m in all_models}
     with open(CONFIG_PATH, "r") as f: config = yaml.safe_load(f) or {}
     new_model_list = []
