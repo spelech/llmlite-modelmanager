@@ -42,7 +42,18 @@ templates = Jinja2Templates(directory="app/templates")
 
 # Fallback pricing table for 2026 Gemini models
 FALLBACK_PRICING = {
-    "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30}
+
+GEMINI_SPECS = {
+    "gemini-2.5-pro": {"ctx": 2000000, "out": 8192},
+    "gemini-2.5-flash": {"ctx": 1000000, "out": 8192},
+    "gemini-3.5-flash": {"ctx": 1000000, "out": 8192},
+    "gemini-3.1-flash-lite": {"ctx": 1000000, "out": 8192},
+    "gemini-2.0-flash-exp": {"ctx": 1048576, "out": 8192},
+    "gemini-1.5-pro": {"ctx": 2097152, "out": 8192},
+    "gemini-1.5-flash": {"ctx": 1048576, "out": 8192},
+}
+,
     "gemini-3.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
     "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
     "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
@@ -199,49 +210,59 @@ async def fetch_vertex_publisher_models() -> List[str]:
         return ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]
 
 async def verify_and_cache_vertex_models():
-    """Discover and merge model data without proxy dependency."""
+    """Discover and merge model data using SDK and Billing API."""
     print(f"Starting Vertex discovery for {DEFAULT_LOCATION}...")
     
-    # 1. Discover Models
+    # 1. Discover canonical IDs via SDK
     model_ids = await fetch_vertex_publisher_models()
     
-    # 2. Fetch Pricing & Metadata in parallel
+    # 2. Fetch Pricing from Billing API
     pricing_map = await fetch_vertex_billing_skus()
     
     models = []
     for mid in model_ids:
-        # Technical Metadata
-        meta = await fetch_vertex_model_metadata(mid)
+        # Match Pricing
+        p_data = {"prompt_1m": 0.0, "completion_1m": 0.0}
         
-        # Match Pricing (Heuristic)
-        pricing = {"prompt_1m": 0.0, "completion_1m": 0.0}
-        # Try direct match
-        if mid in pricing_map: pricing = pricing_map[mid]
-        else:
-            # Try partial match (e.g. gemini-1.5-pro-002 -> gemini-1.5-pro)
-            for k, p in pricing_map.items():
-                if k in mid:
-                    pricing = p
-                    break
+        # Heuristic: search for best pricing match in billing keys
+        # Primary search keys: mid, mid-text-input, mid-global-text-input
+        search_keys = [mid, f"{mid}-text-input", f"{mid}-global-text-input", f"{mid}-input"]
+        for sk in search_keys:
+            if sk in pricing_map:
+                p_data["prompt_1m"] = pricing_map[sk]["prompt_1m"]
+                break
         
-        # Fallback to static if still 0
-        if pricing["prompt_1m"] == 0:
+        search_keys_out = [f"{mid}-text-output", f"{mid}-global-text-output", f"{mid}-output"]
+        for sk in search_keys_out:
+            if sk in pricing_map:
+                p_data["completion_1m"] = pricing_map[sk]["completion_1m"]
+                break
+        
+        # Fallback to static pricing if still 0
+        if p_data["prompt_1m"] == 0:
             base = "-".join(mid.split("-")[:3])
             if base in FALLBACK_PRICING:
-                pricing = FALLBACK_PRICING[base]
+                p_data = FALLBACK_PRICING[base]
+
+        # Technical Specs (Hardcoded table for reliability)
+        spec = GEMINI_SPECS.get(mid, {"ctx": 1000000, "out": 8192})
+        # If mid contains a version number like -001, try stripping it
+        if mid not in GEMINI_SPECS:
+            base_id = "-".join(mid.split("-")[:3])
+            spec = GEMINI_SPECS.get(base_id, spec)
 
         models.append({
             "id": f"vertex_ai/{mid}",
             "name": mid.replace("-", " ").title(),
             "brand": "google",
             "pricing": {
-                "prompt": pricing["prompt_1m"] / 1_000_000,
-                "completion": pricing["completion_1m"] / 1_000_000,
-                "prompt_1m": pricing["prompt_1m"],
-                "completion_1m": pricing["completion_1m"]
+                "prompt": p_data["prompt_1m"] / 1_000_000,
+                "completion": p_data["completion_1m"] / 1_000_000,
+                "prompt_1m": p_data["prompt_1m"],
+                "completion_1m": p_data["completion_1m"]
             },
-            "context_length": meta.get("max_input_tokens", 0),
-            "max_output_tokens": meta.get("max_output_tokens", 0),
+            "context_length": spec["ctx"],
+            "max_output_tokens": spec["out"],
             "capabilities": extract_capabilities("", mid)
         })
 
@@ -413,20 +434,7 @@ async def sync_models(request: Request):
     return {"status": "success", "updated_models": len(new_model_list)}
 
 
-@app.get("/list-valid-models")
-async def list_valid_models():
-    token = get_google_access_token()
-    if not token: return {"error": "No token"}
-    url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
-            return {"error": resp.text}
-        except Exception as e:
-            return {"error": str(e)}
+
 
 @app.get("/api/models")
 async def api_models():
