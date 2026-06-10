@@ -305,7 +305,7 @@ async def verify_and_cache_vertex_models():
                         headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
                         payload = {"model": m_data["id"], "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
                         resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
-                        if resp.status_code == 200: return m_data
+                        if resp.status_code == 200: print(f"DEBUG: Verified model: {m_data['id']}"); return m_data
                     except: pass
                 return None
             
