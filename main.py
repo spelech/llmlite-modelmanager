@@ -337,10 +337,17 @@ async def sync_models(request: Request):
         pricing = m_data.get("pricing", {})
         # Get context window and other metadata
         ctx = m_data.get("context_length")
+        max_out = m_data.get("max_output_tokens") or m_data.get("max_completion_tokens")
+        
         try:
             ctx_int = int(ctx)
         except (TypeError, ValueError):
             ctx_int = None
+        
+        try:
+            max_out_int = int(max_out)
+        except (TypeError, ValueError):
+            max_out_int = None
             
         entry = {
             "model_name": mid.split("/")[-1],
@@ -353,6 +360,8 @@ async def sync_models(request: Request):
         }
         if ctx_int:
             entry["model_info"]["max_input_tokens"] = ctx_int
+        if max_out_int:
+            entry["model_info"]["max_output_tokens"] = max_out_int
         
         # Add additional metadata if available
         if "capabilities" in m_data:
