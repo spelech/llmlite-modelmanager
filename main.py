@@ -436,6 +436,11 @@ async def debug_publisher_models():
 
 
 
+@app.post("/sync")
+async def sync_models(request: Request):
+    form_data = await request.form()
+    selected_ids = form_data.getlist("models")
+    all_models = app_state["or_models"] + app_state["vx_models"]
     model_map = {m["id"]: m for m in all_models}
     with open(CONFIG_PATH, "r") as f: config = yaml.safe_load(f) or {}
     new_model_list = []
