@@ -193,7 +193,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                     name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
                     if name_parts.startswith("Gemini"):
                         model_name = name_parts
-                        print(f"DEBUG: name={model_name}, id={short_id}"); short_id = model_name.lower().replace(" ", "-")
+                        short_id = model_name.lower().replace(" ", "-"); print(f"DEBUG: name={model_name}, id={short_id}")
                         if short_id not in models_data:
                             # Fetch metadata separately
                             meta = await fetch_vertex_model_metadata(f"vertex_ai/{short_id}")
