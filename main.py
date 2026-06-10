@@ -313,8 +313,10 @@ async def index(request: Request):
 @app.post("/test")
 async def test_model(model_id: str = Form(...)):
     try:
+        # Use the alias (short name) for the proxy call
+        alias = model_id.split("/")[-1]
         headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
-        payload = {"model": model_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10}
+        payload = {"model": alias, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10}
         async with httpx.AsyncClient() as client:
             resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=15.0)
             if resp.status_code == 200:
