@@ -402,6 +402,19 @@ async def get_config():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug-models")
+async def debug_models():
+    token = get_google_access_token()
+    if not token: return {"error": "No token"}
+    url = f"https://{DEFAULT_LOCATION}-aiplatform.googleapis.com/v1/publishers/google/models"
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            return resp.json()
+        except Exception as e:
+            return {"error": str(e)}
+
 @app.post("/sync")
 async def sync_models(request: Request):
     form_data = await request.form()
