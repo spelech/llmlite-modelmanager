@@ -49,14 +49,25 @@ FALLBACK_PRICING = {
 }
 
 def extract_capabilities(description: str, model_id: str) -> Dict[str, bool]:
-    """Heuristic capability extraction from name/description."""
+    """Heuristic capability extraction for input/output modalities and features."""
     desc_low = description.lower()
     mid_low = model_id.lower()
+    
+    # Heuristic helpers
+    def match(keywords):
+        return any(k in desc_low or k in mid_low for k in keywords)
+
     return {
-        "image_in": any(x in desc_low or x in mid_low for x in ["vision", "image", "multimodal", "flash", "pro"]),
-        "audio_in": any(x in desc_low or x in mid_low for x in ["audio", "multimodal"]),
-        "video_in": any(x in desc_low or x in mid_low for x in ["video", "multimodal"]),
-        "text_out": True
+        "text_in": True,
+        "text_out": True,
+        "image_in": match(["vision", "image", "multimodal", "flash", "pro"]),
+        "image_out": match(["dall-e", "imagen", "generator", "draw"]),
+        "audio_in": match(["audio", "speech", "whisper"]),
+        "audio_out": match(["tts", "text-to-speech", "audio"]),
+        "video_in": match(["video", "multimodal"]),
+        "video_out": match(["video-gen", "sora"]),
+        "function_calling": match(["function", "tool", "agent"]),
+        "streaming": True # Generally assumed supported
     }
 
 async def get_openrouter_models() -> List[Dict]:

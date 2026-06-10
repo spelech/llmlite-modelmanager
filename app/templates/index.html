@@ -248,8 +248,11 @@
                                 {% if m.max_output_tokens %} / Out: {{ m.max_output_tokens }} toks{% endif %}
                             </div>
                             <div class="capabilities">
-                                {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
-                                {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
+                                {% if m.capabilities.image_in %}<span class="cap-tag active">Img In</span>{% endif %}
+                                {% if m.capabilities.image_out %}<span class="cap-tag active">Img Out</span>{% endif %}
+                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Aud In</span>{% endif %}
+                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Aud Out</span>{% endif %}
+                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Func</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -284,8 +287,11 @@
                                 {% if m.max_output_tokens %} / Out: {{ m.max_output_tokens }} toks{% endif %}
                             </div>
                             <div class="capabilities">
-                                {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
-                                {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
+                                {% if m.capabilities.image_in %}<span class="cap-tag active">Img In</span>{% endif %}
+                                {% if m.capabilities.image_out %}<span class="cap-tag active">Img Out</span>{% endif %}
+                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Aud In</span>{% endif %}
+                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Aud Out</span>{% endif %}
+                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Func</span>{% endif %}
                             </div>
                         </div>
                         <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
