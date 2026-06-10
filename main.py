@@ -193,7 +193,7 @@ async def fetch_vertex_billing_skus() -> List[Dict]:
                     name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
                     if name_parts.startswith("Gemini"):
                         model_name = name_parts
-                        short_id = model_name.lower().replace(" ", "-")
+                        print(f"DEBUG: name={model_name}, id={short_id}"); short_id = model_name.lower().replace(" ", "-")
                         if short_id not in models_data:
                             # Fetch metadata separately
                             meta = await fetch_vertex_model_metadata(f"vertex_ai/{short_id}")
@@ -403,47 +403,59 @@ async def get_config():
         return {"error": str(e)}
 
 
-@app.get("/debug-skus")
-async def debug_skus():
+
+@app.get("/debug-publisher-models")
+async def debug_publisher_models():
     token = get_google_access_token()
     if not token: return {"error": "No token"}
-    url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
+    # The correct URL to list models in a publisher
+    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(url, headers=headers)
-            skus = resp.json().get("skus", [])
-            return [s.get("description") for s in skus if "Gemini" in s.get("description", "")]
+            if resp.status_code == 200:
+                return [m.get("name") for m in resp.json().get("models", [])]
+            return {"error": resp.text}
         except Exception as e:
             return {"error": str(e)}
 
-@app.get("/debug-skus")
-async def debug_skus():
+
+
+@app.get("/debug-publisher-models")
+async def debug_publisher_models():
     token = get_google_access_token()
     if not token: return {"error": "No token"}
-    url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
+    # The correct URL to list models in a publisher
+    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(url, headers=headers)
-            skus = resp.json().get("skus", [])
-            return [s.get("description") for s in skus if "Gemini" in s.get("description", "")]
+            if resp.status_code == 200:
+                return [m.get("name") for m in resp.json().get("models", [])]
+            return {"error": resp.text}
         except Exception as e:
             return {"error": str(e)}
 
-@app.get("/debug-skus")
-async def debug_skus():
+
+
+@app.get("/debug-publisher-models")
+async def debug_publisher_models():
     token = get_google_access_token()
     if not token: return {"error": "No token"}
-    url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
+    # The correct URL to list models in a publisher
+    url = f"https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(url, headers=headers)
-            skus = resp.json().get("skus", [])
-            return [s.get("description") for s in skus if "Gemini" in s.get("description", "")]
+            if resp.status_code == 200:
+                return [m.get("name") for m in resp.json().get("models", [])]
+            return {"error": resp.text}
         except Exception as e:
             return {"error": str(e)}
+
 
 async def sync_models(request: Request):
     form_data = await request.form()
