@@ -131,11 +131,15 @@ async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             if resp.status_code == 200:
                 data = resp.json()
+                print(f"DEBUG: Found metadata for {model_id}: {data}")
                 return {
                     "max_input_tokens": int(data.get("inputTokenLimit", 0)),
                     "max_output_tokens": int(data.get("outputTokenLimit", 0))
                 }
-        except: pass
+            else:
+                print(f"DEBUG: Metadata API Error for {model_id}: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            print(f"Exception in fetch_vertex_model_metadata for {model_id}: {e}")
     return {}
 
 async def fetch_vertex_billing_skus() -> Dict[str, Dict]:
