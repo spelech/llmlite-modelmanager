@@ -413,11 +413,6 @@ async def get_config():
 
 
 
-async def sync_models(request: Request):
-    form_data = await request.form()
-    selected_ids = form_data.getlist("models")
-    all_models = app_state["or_models"] + app_state["vx_models"]
-
 @app.get("/debug-publisher-models")
 async def debug_publisher_models():
     token = get_google_access_token()
