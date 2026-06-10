@@ -25,7 +25,9 @@ if os.path.exists("VERSION"):
     with open("VERSION", "r") as f:
         APP_VERSION = f.read().strip()
 else:
-    APP_VERSION = os.environ.get("APP_VERSION", "dev")
+    if os.path.exists("VERSION"):
+    with open("VERSION", "r") as f: APP_VERSION = f.read().strip()
+else: APP_VERSION = "dev"
 APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
 # Vertex defaults
