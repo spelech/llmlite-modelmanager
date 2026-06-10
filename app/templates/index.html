@@ -61,9 +61,16 @@
         .checkbox-group { display: flex; flex-wrap: wrap; gap: 15px; }
         .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.9em; cursor: pointer; }
 
-        .container { display: flex; gap: 30px; }
-        .column { flex: 1; background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
+        .container { display: flex; gap: 30px; height: calc(100vh - 380px); min-height: 500px; margin-bottom: 20px; }
+        .column { flex: 1; background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+        .model-list { flex-grow: 1; overflow-y: auto; padding-right: 10px; margin-top: 10px; }
         
+        /* Custom scrollbar */
+        .model-list::-webkit-scrollbar { width: 6px; }
+        .model-list::-webkit-scrollbar-track { background: transparent; }
+        .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
         .model-item { 
             margin-bottom: 12px; 
             padding: 12px; 
@@ -126,6 +133,7 @@
             cursor: pointer;
             transition: transform 0.2s, background-color 0.2s;
             font-weight: bold;
+            font-size: 1.2em;
         }
 
         .fab-btn:hover { transform: scale(1.1); }
@@ -134,8 +142,15 @@
             background-color: var(--warning); 
             width: 50px; 
             height: 50px; 
-            font-size: 0.8em;
+            font-size: 1em;
             margin-right: 5px;
+        }
+        .fab-btn.info {
+            background-color: var(--purple);
+            width: 45px;
+            height: 45px;
+            font-size: 0.9em;
+            margin-right: 8px;
         }
 
         .fab-label {
@@ -225,7 +240,7 @@
         <div class="container">
             <div class="column">
                 <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
-                <div id="orList">
+                <div id="orList" class="model-list">
                     {% for m in or_models %}
                     <div class="model-item" 
                          data-name="{{ m.name | lower }}" 
@@ -272,7 +287,7 @@
             
             <div class="column">
                 <h2>Vertex AI <span class="count-badge" id="vxCount">0</span></h2>
-                <div id="vxList">
+                <div id="vxList" class="model-list">
                     {% for m in vx_models %}
                     <div class="model-item" 
                          data-name="{{ m.name | lower }}" 
@@ -317,6 +332,10 @@
 
         <div class="fab-group">
             <div class="fab-container">
+                <span class="fab-label">Back to Top</span>
+                <button type="button" class="fab-btn info" onclick="scrollToTop()">🔝</button>
+            </div>
+            <div class="fab-container">
                 <span class="fab-label">Restart Proxy</span>
                 <button type="button" class="fab-btn secondary" onclick="restartLiteLLM()">♻️</button>
             </div>
@@ -326,7 +345,7 @@
             </div>
         </div>
 
-    <header>
+        <header>
     <h1>LiteLLM Model Manager</h1>
     <div class="header-version">Version: {{ version }} | Build: {{ build_time }}</div>
 </header>
@@ -336,6 +355,13 @@
 </style>
 
     <script>
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.querySelectorAll('.model-list').forEach(list => {
+                list.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
         function applyAllFilters() {
             const query = document.getElementById('globalSearch').value.toLowerCase();
             const brand = document.getElementById('brandFilter').value;
