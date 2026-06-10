@@ -106,7 +106,7 @@ async def get_openrouter_models() -> List[Dict]:
                         "prompt_1m": float(m.get("pricing", {}).get("prompt", 0)) * 1_000_000,
                         "completion_1m": float(m.get("pricing", {}).get("completion", 0)) * 1_000_000
                     },
-                    "context_length": m.get("context_length", 0),
+                    "max_input_tokens": m.get("context_length", 0),
                     "max_output_tokens": m.get("top_provider", {}).get("max_completion_tokens", 0),
                     "capabilities": extract_capabilities(m.get("description", ""), m["id"])
                 })
@@ -260,7 +260,7 @@ async def verify_and_cache_vertex_models():
                 "prompt_1m": p_data["prompt_1m"],
                 "completion_1m": p_data["completion_1m"]
             },
-            "context_length": spec["ctx"],
+            "max_input_tokens": spec["ctx"],
             "max_output_tokens": spec["out"],
             "capabilities": extract_capabilities("", mid)
         })
@@ -379,7 +379,7 @@ async def sync_models(request: Request):
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
         # Get context window and other metadata
-        ctx = m_data.get("context_length"); print(f"DEBUG: mid={mid}, ctx={ctx}")
+        ctx = m_data.get("max_input_tokens"); print(f"DEBUG: mid={mid}, ctx={ctx}")
         max_out = m_data.get("max_output_tokens") or m_data.get("max_completion_tokens")
         
         try:

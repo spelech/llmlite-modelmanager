@@ -239,6 +239,8 @@
                          data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
                          data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                         data-max-output="{{ m.max_output_tokens or 0 }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
@@ -284,6 +286,8 @@
                          data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
                          data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
                          data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                         data-max-output="{{ m.max_output_tokens or 0 }}"
                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                         <input type="checkbox" name="models" value="{{ m.id }}">
                         <div class="model-info">
