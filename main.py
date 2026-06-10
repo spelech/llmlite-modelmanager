@@ -335,6 +335,18 @@ async def restart_litellm():
         return {"status": "success"}
     except Exception as e: return {"status": "error", "message": str(e)}
 
+@app.get("/api/config")
+async def get_config():
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f) or {}
+            model_list = config.get("model_list", [])
+            # Extract IDs from litellm_params.model
+            selected_ids = [m.get("litellm_params", {}).get("model") for m in model_list if m.get("litellm_params", {}).get("model")]
+            return {"selected_ids": selected_ids}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/sync")
 async def sync_models(request: Request):
     form_data = await request.form()

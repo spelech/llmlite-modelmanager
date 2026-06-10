@@ -417,9 +417,21 @@
             select.value = currentBrand;
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             populateBrands();
             applyAllFilters();
+            
+            // Load existing configuration
+            try {
+                const resp = await fetch('/api/config');
+                const data = await resp.json();
+                if (data.selected_ids) {
+                    data.selected_ids.forEach(id => {
+                        const checkbox = document.querySelector(`input[name="models"][value="${id}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+            } catch (e) { console.error("Failed to load config", e); }
         };
 
         async function testModel(modelId) {
