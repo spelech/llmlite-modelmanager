@@ -363,11 +363,15 @@ async def sync_models(request: Request):
         if max_out_int:
             entry["model_info"]["max_output_tokens"] = max_out_int
         
-        # Add additional metadata if available
+        # Add additional common metadata if available
         if "capabilities" in m_data:
             entry["model_info"]["capabilities"] = m_data["capabilities"]
         if "brand" in m_data:
             entry["model_info"]["brand"] = m_data["brand"]
+        # Look for version information in common fields
+        version = m_data.get("version") or m_data.get("model_version")
+        if version:
+            entry["model_info"]["version"] = version
         if mid.startswith("openrouter/"):
             entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
         elif mid.startswith("vertex_ai/"):
