@@ -134,8 +134,10 @@ async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
                     "max_input_tokens": int(data.get("inputTokenLimit", 0)),
                     "max_output_tokens": int(data.get("outputTokenLimit", 0))
                 }
-        except Exception:
-            pass
+            else:
+                print(f"Vertex API Error: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            print(f"Exception in fetch_vertex_model_metadata: {e}")
     return {}
 
 async def fetch_vertex_billing_skus() -> List[Dict]:
