@@ -189,6 +189,14 @@
     </style>
 </head>
 <body>
+    <header>
+    <h1>LiteLLM Model Manager</h1>
+    <div class="header-version">Version: {{ version }} | Build: {{ build_time }}</div>
+</header>
+<style>
+    header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--border); }
+    .header-version { font-size: 0.8em; color: var(--text-dim); }
+</style>
     <div class="header-actions">
         <h1>LiteLLM Model Manager</h1>
         <button class="btn-refresh" onclick="forceRefresh()">Force Refresh & Verify</button>
@@ -345,16 +353,16 @@
             </div>
         </div>
 
-        <header>
-    <h1>LiteLLM Model Manager</h1>
-    <div class="header-version">Version: {{ version }} | Build: {{ build_time }}</div>
-</header>
-<style>
-    header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--border); }
-    .header-version { font-size: 0.8em; color: var(--text-dim); }
-</style>
+        
 
     <script>
+        function formatTokens(num) {
+            if (!num || num === 0) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toString();
+        }
+
         function scrollToTop() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             document.querySelectorAll('.model-list').forEach(list => {
@@ -402,6 +410,15 @@
                 const iAudOut = item.dataset.audioOut === 'true';
                 const iFunc = item.dataset.func === 'true';
                 const isSelected = item.querySelector('input[type="checkbox"]').checked;
+                
+                // Update human-readable tokens display
+                const specsDiv = item.querySelector('.model-specs');
+                const inLimit = parseInt(item.dataset.maxInput);
+                const outLimit = parseInt(item.dataset.maxOutput);
+                let specsText = '';
+                if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
+                if (outLimit) specsText += ` / Out: ${formatTokens(outLimit)}`;
+                specsDiv.innerText = specsText;
 
                 let visible = true;
 
