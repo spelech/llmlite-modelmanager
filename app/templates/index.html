@@ -243,6 +243,10 @@
                             <div class="model-pricing">
                                 In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
                             </div>
+                            <div class="model-specs" style="font-size: 0.8em; color: var(--text-dim); font-family: monospace; margin-top: 2px;">
+                                {% if m.max_input_tokens %}In: {{ m.max_input_tokens }} toks{% endif %}
+                                {% if m.max_output_tokens %} / Out: {{ m.max_output_tokens }} toks{% endif %}
+                            </div>
                             <div class="capabilities">
                                 {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
                                 {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio</span>{% endif %}
@@ -274,6 +278,10 @@
                             <div class="model-id">{{ m.id }}</div>
                             <div class="model-pricing">
                                 In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                            </div>
+                            <div class="model-specs" style="font-size: 0.8em; color: var(--text-dim); font-family: monospace; margin-top: 2px;">
+                                {% if m.max_input_tokens %}In: {{ m.max_input_tokens }} toks{% endif %}
+                                {% if m.max_output_tokens %} / Out: {{ m.max_output_tokens }} toks{% endif %}
                             </div>
                             <div class="capabilities">
                                 {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision</span>{% endif %}
