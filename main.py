@@ -361,24 +361,6 @@ async def test_model(model_id: str = Form(...)):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-        elif model_id.startswith("openrouter/"):
-            # Test OpenRouter directly via its API
-            or_id = model_id.replace("openrouter/", "")
-            headers = {
-                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
-                "Content-Type": "application/json"
-            }
-            payload = {"model": or_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10}
-            async with httpx.AsyncClient() as client:
-                resp = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-                if resp.status_code == 200:
-                    return {"status": "success", "response": resp.json()["choices"][0]["message"]["content"]}
-                return {"status": "error", "message": resp.text}
-                
-        return {"status": "error", "message": "Unknown provider prefix"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
 @app.post("/force-refresh")
 async def force_refresh():
     if os.path.exists(CACHE_FILE):
