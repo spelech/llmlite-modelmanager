@@ -129,6 +129,20 @@
         .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
         .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
+        /* Brand Headers in List */
+        .brand-group-header {
+            grid-column: 1 / -1;
+            font-size: 0.75em;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--border);
+            opacity: 0.8;
+        }
+        .brand-group-header:first-child { margin-top: 0; }
+
         /* Model Card */
         .model-item { 
             padding: 12px; 
@@ -219,10 +233,6 @@
 
         .count-badge { font-size: 0.7em; background: var(--accent); color: white; padding: 1px 6px; border-radius: 10px; }
 
-        /* Animation for status change */
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-        .verifying { animation: pulse 2s infinite; color: var(--warning); }
-    
         /* Modal Styles */
         .modal {
             display: none;
@@ -250,6 +260,9 @@
         .modal-content h2 { margin: 0; font-size: 1.5em; color: var(--accent); }
         .settings-grid { display: flex; flex-direction: column; gap: 15px; }
 
+        /* Animation for status change */
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .verifying { animation: pulse 2s infinite; color: var(--warning); }
     </style>
 </head>
 <body>
@@ -307,7 +320,12 @@
                     <div class="column">
                         <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
                         <div id="orList" class="model-list">
+                            {% set current_brand = "" %}
                             {% for m in or_models %}
+                            {% if m.brand != current_brand %}
+                                <h3 class="brand-group-header">{{ m.brand | upper }}</h3>
+                                {% set current_brand = m.brand %}
+                            {% endif %}
                             <div class="model-item" 
                                  data-name="{{ m.name | lower }}" 
                                  data-id="{{ m.id | lower }}"
@@ -327,7 +345,6 @@
                                 <div class="model-info">
                                     <div class="model-name">
                                         {{ m.name }} 
-                                        <span class="model-brand">{{ m.brand }}</span>
                                     </div>
                                     <div class="model-id">{{ m.id }}</div>
                                     <div class="model-pricing">
@@ -408,6 +425,43 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h2>Manager Configuration</h2>
+            <form id="settingsForm" class="settings-grid">
+                <div class="filter-group">
+                    <span class="filter-label">OpenRouter API Key</span>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="password" name="OPENROUTER_API_KEY" id="setting_OR_KEY" placeholder="sk-or-v1-..." style="flex-grow: 1;">
+                        <button type="button" class="btn-refresh" onclick="togglePassword('setting_OR_KEY')">👁️</button>
+                    </div>
+                </div>
+                
+                <div class="filter-group">
+                    <span class="filter-label">Vertex Project ID</span>
+                    <input type="text" name="VERTEX_PROJECT" id="setting_VX_PROJ" placeholder="your-project-id">
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Vertex Location</span>
+                    <input type="text" name="VERTEX_LOCATION" id="setting_VX_LOC" placeholder="global">
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Vertex Service Account JSON</span>
+                    <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="8" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical;"></textarea>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">LiteLLM Config Path</span>
+                    <input type="text" name="LITELLM_CONFIG" id="setting_CONFIG_PATH" placeholder="/app/config/config.yaml">
+                </div>
+                <div style="margin-top: 10px; display: flex; gap: 15px; justify-content: flex-end;">
+                    <button type="button" class="btn-refresh" onclick="closeSettings()">Cancel</button>
+                    <button type="submit" class="btn-sync" style="padding: 10px 25px; background: var(--accent); color: white; border-radius: 4px; font-weight: bold;">Save & Refresh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function formatTokens(num) {
             if (!num || num === 0) return '0';
@@ -423,8 +477,6 @@
             });
         }
 
-        
-        
         function togglePassword(id) {
             const input = document.getElementById(id);
             input.type = input.type === 'password' ? 'text' : 'password';
@@ -440,7 +492,6 @@
                 document.getElementById('setting_VX_LOC').value = settings.VERTEX_LOCATION || 'global';
                 document.getElementById('setting_VX_JSON').value = settings.VERTEX_CREDENTIALS_JSON || '';
                 document.getElementById('setting_CONFIG_PATH').value = settings.LITELLM_CONFIG || '';
-                document.getElementById('setting_MASTER_KEY').value = settings.LITELLM_MASTER_KEY || '';
                 
                 document.getElementById('settingsModal').style.display = 'block';
             } catch (e) { alert('Failed to load settings'); }
@@ -514,8 +565,8 @@
                 const inLimit = parseInt(item.dataset.maxInput);
                 const outLimit = parseInt(item.dataset.maxOutput);
                 let specsText = '';
-                if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
-                if (outLimit) specsText += ` / Out: ${formatTokens(outLimit)}`;
+                if (inLimit) specsText += `In: \${formatTokens(inLimit)}`;
+                if (outLimit) specsText += ` / Out: \${formatTokens(outLimit)}`;
                 specsDiv.innerText = specsText || 'In: ? / Out: ?';
 
                 let visible = true;
@@ -542,6 +593,20 @@
                     if (item.closest('#orList')) counts.or++;
                     else counts.vx++;
                 }
+            });
+
+            // Hide/Show brand headers based on visible models
+            document.querySelectorAll('.brand-group-header').forEach(header => {
+                let next = header.nextElementSibling;
+                let anyVisible = false;
+                while (next && !next.classList.contains('brand-group-header')) {
+                    if (next.style.display !== 'none') {
+                        anyVisible = true;
+                        break;
+                    }
+                    next = next.nextElementSibling;
+                }
+                header.style.display = anyVisible ? 'block' : 'none';
             });
 
             document.getElementById('orCount').innerText = counts.or;
@@ -574,7 +639,7 @@
                 const data = await resp.json();
                 if (data.selected_ids) {
                     data.selected_ids.forEach(id => {
-                        const checkbox = document.querySelector(`input[name="models"][value="${id}"]`);
+                        const checkbox = document.querySelector(`input[name="models"][value="\${id}"]`);
                         if (checkbox) checkbox.checked = true;
                     });
                 }
@@ -630,56 +695,10 @@
             const formData = new FormData(e.target);
             const resp = await fetch('/sync', { method: 'POST', body: formData });
             const result = await resp.json();
-            if (result.status === 'success') alert(`Updated ${result.updated_models} models!`);
+            if (result.status === 'success') alert(`Updated \${result.updated_models} models!`);
         };
 
         applyAllFilters();
     </script>
-
-    
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <h2>Manager Configuration</h2>
-            <form id="settingsForm" class="settings-grid">
-                <div class="filter-group">
-                    <span class="filter-label">OpenRouter API Key</span>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="password" name="OPENROUTER_API_KEY" id="setting_OR_KEY" placeholder="sk-or-v1-..." style="flex-grow: 1;">
-                        <button type="button" class="btn-refresh" onclick="togglePassword('setting_OR_KEY')">👁️</button>
-                    </div>
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">LiteLLM Master Key</span>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="password" name="LITELLM_MASTER_KEY" id="setting_MASTER_KEY" placeholder="sk-..." style="flex-grow: 1;">
-                        <button type="button" class="btn-refresh" onclick="togglePassword('setting_MASTER_KEY')">👁️</button>
-                    </div>
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">Vertex Project ID</span>
-                    <input type="text" name="VERTEX_PROJECT" id="setting_VX_PROJ" placeholder="your-project-id">
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">Vertex Location</span>
-                    <input type="text" name="VERTEX_LOCATION" id="setting_VX_LOC" placeholder="global">
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">Vertex Service Account JSON</span>
-                    <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="5" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em;"></textarea>
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">LiteLLM Config Path</span>
-                    <input type="text" name="LITELLM_CONFIG" id="setting_CONFIG_PATH" placeholder="/app/config/config.yaml">
-                </div>
-                <div style="margin-top: 10px; display: flex; gap: 15px; justify-content: flex-end;">
-                    <button type="button" class="btn-refresh" onclick="closeSettings()">Cancel</button>
-                    <button type="submit" class="btn-sync" style="padding: 10px 25px;">Save & Refresh</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-
 </body>
 </html>
