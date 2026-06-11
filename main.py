@@ -18,7 +18,7 @@ from app.database import init_db, get_all_settings, set_setting, get_setting
 DEFAULT_CONFIG_PATH = "/app/config/config.yaml"
 DEFAULT_VERTEX_CREDS = "/app/vertex_credentials.json"
 PROXY_URL = "http://litellm:4000/v1/chat/completions"
-MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "sk-local-wileyriley-gateway-12345")
+MASTER_KEY_DEFAULT = "sk-local-wileyriley-gateway-12345"
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
 

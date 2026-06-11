@@ -434,6 +434,7 @@
                 document.getElementById('setting_VX_LOC').value = settings.VERTEX_LOCATION || 'global';
                 document.getElementById('setting_VX_CREDS').value = settings.VERTEX_CREDENTIALS_PATH || '';
                 document.getElementById('setting_CONFIG_PATH').value = settings.LITELLM_CONFIG || '';
+                document.getElementById('setting_MASTER_KEY').value = settings.LITELLM_MASTER_KEY || '';
                 
                 document.getElementById('settingsModal').style.display = 'block';
             } catch (e) { alert('Failed to load settings'); }
@@ -649,6 +650,12 @@
                 <div class="filter-group">
                     <span class="filter-label">Vertex Credentials Path</span>
                     <input type="text" name="VERTEX_CREDENTIALS_PATH" id="setting_VX_CREDS" placeholder="/app/vertex_credentials.json">
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">LiteLLM Config Path</span>
+                                    <div class="filter-group">
+                    <span class="filter-label">LiteLLM Master Key</span>
+                    <input type="password" name="LITELLM_MASTER_KEY" id="setting_MASTER_KEY" placeholder="sk-...">
                 </div>
                 <div class="filter-group">
                     <span class="filter-label">LiteLLM Config Path</span>
