@@ -280,6 +280,21 @@ async def verify_and_cache_vertex_models():
         json.dump({"timestamp": app_state["last_verification_time"], "models": verified_models}, f)
     print(f"Vertex discovery finished. Found {len(verified_models)} models.")
 
+
+def update_vertex_creds_file():
+    """Write Vertex JSON from settings to file for GCP SDK use."""
+    json_content = get_app_setting("VERTEX_CREDENTIALS_JSON")
+    if json_content:
+        try:
+            # Validate JSON
+            json.loads(json_content)
+            # Write to default path
+            with open(DEFAULT_VERTEX_CREDS, "w") as f:
+                f.write(json_content)
+            print(f"Updated Vertex credentials file at {DEFAULT_VERTEX_CREDS}")
+        except Exception as e:
+            print(f"Error writing Vertex credentials JSON: {e}")
+
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
     app_state["or_models"] = await get_openrouter_models()
@@ -305,6 +320,7 @@ from fastapi.middleware.cors import CORSMiddleware
 async def lifespan(app: FastAPI):
     await init_db()
     await refresh_app_settings()
+    update_vertex_creds_file()
     await initial_load_models()
     yield
 
@@ -408,6 +424,8 @@ async def api_update_settings(data: Dict[str, str]):
     for k, v in data.items():
         await set_setting(k, v)
     await refresh_app_settings()
+    update_vertex_creds_file()
+    update_vertex_creds_file()
     return {"status": "success"}
 
 @app.get("/api/config")
