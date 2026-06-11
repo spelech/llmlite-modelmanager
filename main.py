@@ -18,9 +18,10 @@ from app.database import init_db, get_all_settings, set_setting, get_setting
 DEFAULT_CONFIG_PATH = "/app/config/config.yaml"
 DEFAULT_VERTEX_CREDS = "/app/vertex_credentials.json"
 PROXY_URL = "http://litellm:4000/v1/chat/completions"
-MASTER_KEY_DEFAULT = "sk-local-wileyriley-gateway-12345"
+
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
+DEFAULT_LOCATION = "global"
 
 # App Versioning
 if os.path.exists("VERSION"):
@@ -118,7 +119,7 @@ async def get_openrouter_models() -> List[Dict]:
                     "max_output_tokens": m.get("top_provider", {}).get("max_completion_tokens", 0),
                     "capabilities": extract_capabilities(m.get("description", ""), m["id"])
                 })
-            return sorted(models, key=lambda x: x["name"])
+            return sorted(models, key=lambda x: (x["brand"], x["name"]))
     except Exception as e:
         print(f"Error fetching OpenRouter: {e}")
         return []
@@ -280,6 +281,21 @@ async def verify_and_cache_vertex_models():
         json.dump({"timestamp": app_state["last_verification_time"], "models": verified_models}, f)
     print(f"Vertex discovery finished. Found {len(verified_models)} models.")
 
+
+def update_vertex_creds_file():
+    """Write Vertex JSON from settings to file for GCP SDK use."""
+    json_content = get_app_setting("VERTEX_CREDENTIALS_JSON")
+    if json_content:
+        try:
+            # Validate JSON
+            json.loads(json_content)
+            # Write to default path
+            with open(DEFAULT_VERTEX_CREDS, "w") as f:
+                f.write(json_content)
+            print(f"Updated Vertex credentials file at {DEFAULT_VERTEX_CREDS}")
+        except Exception as e:
+            print(f"Error writing Vertex credentials JSON: {e}")
+
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
     app_state["or_models"] = await get_openrouter_models()
@@ -305,6 +321,7 @@ from fastapi.middleware.cors import CORSMiddleware
 async def lifespan(app: FastAPI):
     await init_db()
     await refresh_app_settings()
+    update_vertex_creds_file()
     await initial_load_models()
     yield
 
@@ -408,6 +425,8 @@ async def api_update_settings(data: Dict[str, str]):
     for k, v in data.items():
         await set_setting(k, v)
     await refresh_app_settings()
+    update_vertex_creds_file()
+    update_vertex_creds_file()
     return {"status": "success"}
 
 @app.get("/api/config")
@@ -420,7 +439,7 @@ async def get_config():
             selected_ids = [m.get("litellm_params", {}).get("model") for m in model_list if m.get("litellm_params", {}).get("model")]
             return {"selected_ids": selected_ids}
     except Exception as e:
-        print(f"DEBUG: URL={url}"); return {"error": str(e)}
+        return {"error": str(e)}
 
 
 
@@ -443,63 +462,56 @@ async def sync_models(request: Request):
     selected_ids = form_data.getlist("models")
     all_models = app_state["or_models"] + app_state["vx_models"]
     model_map = {m["id"]: m for m in all_models}
-    with open(get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH), "r") as f: config = yaml.safe_load(f) or {}
+    
+    config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f) or {}
+    
     new_model_list = []
     for mid in selected_ids:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
-        # Get context window and other metadata
-        ctx = m_data.get("max_input_tokens"); print(f"DEBUG: mid={mid}, ctx={ctx}")
-        max_out = m_data.get("max_output_tokens") or m_data.get("max_completion_tokens")
         
-        try:
-            ctx_int = int(ctx)
-        except (TypeError, ValueError):
-            ctx_int = None
-        
-        try:
-            max_out_int = int(max_out)
-        except (TypeError, ValueError):
-            max_out_int = None
-            
         entry = {
             "model_name": mid.split("/")[-1],
             "litellm_params": {"model": mid},
             "model_info": {
                 "id": mid,
                 "input_cost_per_token": pricing.get("prompt", 0),
-                "output_cost_per_token": pricing.get("completion", 0)
+                "output_cost_per_token": pricing.get("completion", 0),
+                "max_input_tokens": m_data.get("max_input_tokens", 0),
+                "max_output_tokens": m_data.get("max_output_tokens", 0),
+                "capabilities": m_data.get("capabilities", {}),
+                "brand": m_data.get("brand", "other")
             }
         }
-        if ctx_int:
-            entry["model_info"]["max_input_tokens"] = ctx_int
-        if max_out_int:
-            entry["model_info"]["max_output_tokens"] = max_out_int
         
-        # Add additional common metadata if available
-        if "capabilities" in m_data:
-            entry["model_info"]["capabilities"] = m_data["capabilities"]
-        if "brand" in m_data:
-            entry["model_info"]["brand"] = m_data["brand"]
-        # Look for version information in common fields
-        version = m_data.get("version") or m_data.get("model_version")
-        if version:
-            entry["model_info"]["version"] = version
         if mid.startswith("openrouter/"):
             entry["litellm_params"]["api_key"] = get_app_setting("OPENROUTER_API_KEY")
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
                 "vertex_project": get_app_setting("VERTEX_PROJECT"),
-                "vertex_location": get_app_setting("VERTEX_LOCATION", 'global'),
+                "vertex_location": get_app_setting("VERTEX_LOCATION", "global"),
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
-            # For Vertex, also provide character-based pricing as it's common for Gemini
+            # Character-based pricing for Gemini
             entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
             entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
+            
         new_model_list.append(entry)
-    wildcards = [m for m in config.get("model_list", []) if "*" in m.get("model_name", "")]
+    
+    # Filter out existing models from model_list that are NOT wildcards
+    # and replace with our new list.
+    existing_list = config.get("model_list", [])
+    wildcards = [m for m in existing_list if "*" in m.get("model_name", "")]
+    
     config["model_list"] = new_model_list + wildcards
-    with open(get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH), "w") as f: yaml.safe_dump(config, f, sort_keys=False)
+    
+    with open(config_path, "w") as f:
+        yaml.safe_dump(config, f, sort_keys=False)
+        
     return {"status": "success", "updated_models": len(new_model_list)}
 
 
