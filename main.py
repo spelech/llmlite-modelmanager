@@ -30,7 +30,7 @@ APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
 # Vertex defaults
 DEFAULT_PROJECT = os.environ.get("VERTEX_PROJECT")
-DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
+DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 
 # Global App State for caching model lists in memory
 app_state = {
@@ -211,7 +211,7 @@ async def fetch_vertex_publisher_models() -> List[str]:
 
 async def verify_and_cache_vertex_models():
     """Discover and merge model data using SDK and Billing API."""
-    print(f"Starting Vertex discovery for {DEFAULT_LOCATION}...")
+    print(f"Starting Vertex discovery for {DEFAULT_LOCATION} (Universal Mode)...")
     
     # 1. Discover canonical IDs via SDK
     model_ids = await fetch_vertex_publisher_models()
