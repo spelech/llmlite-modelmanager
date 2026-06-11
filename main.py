@@ -21,6 +21,7 @@ PROXY_URL = "http://litellm:4000/v1/chat/completions"
 
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
+DEFAULT_LOCATION = "global"
 
 # App Versioning
 if os.path.exists("VERSION"):
@@ -438,7 +439,7 @@ async def get_config():
             selected_ids = [m.get("litellm_params", {}).get("model") for m in model_list if m.get("litellm_params", {}).get("model")]
             return {"selected_ids": selected_ids}
     except Exception as e:
-        print(f"DEBUG: URL={url}"); return {"error": str(e)}
+        return {"error": str(e)}
 
 
 
