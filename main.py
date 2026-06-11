@@ -446,7 +446,7 @@ async def sync_models(request: Request):
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
                 "vertex_project": "os.environ/VERTEX_PROJECT",
-                "vertex_location": "os.environ/VERTEX_LOCATION",
+                "vertex_location": "global",
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
             # For Vertex, also provide character-based pricing as it's common for Gemini
