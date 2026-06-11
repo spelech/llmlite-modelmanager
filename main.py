@@ -205,7 +205,7 @@ async def fetch_vertex_publisher_models() -> List[str]:
         from google import genai
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
         creds = service_account.Credentials.from_service_account_file(get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS), scopes=scopes)
-        client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global), credentials=creds)
+        client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global'), credentials=creds)
         
         ids = []
         for model in client.models.list():
@@ -340,7 +340,7 @@ async def test_model(model_id: str = Form(...)):
             short_id = model_id.split("/")[-1]
             scopes = ['https://www.googleapis.com/auth/cloud-platform']
             creds = service_account.Credentials.from_service_account_file(get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS), scopes=scopes)
-            client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global), credentials=creds)
+            client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global'), credentials=creds)
             
             try:
                 if is_embed:
@@ -490,7 +490,7 @@ async def sync_models(request: Request):
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
                 "vertex_project": get_app_setting("VERTEX_PROJECT"),
-                "vertex_location": get_app_setting("VERTEX_LOCATION", 'global),
+                "vertex_location": get_app_setting("VERTEX_LOCATION", 'global'),
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
             # For Vertex, also provide character-based pricing as it's common for Gemini
