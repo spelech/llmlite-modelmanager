@@ -8,6 +8,7 @@ import yaml
 import time
 import asyncio
 import httpx
+from google import genai
 from google.oauth2 import service_account
 from typing import List, Dict
 from contextlib import asynccontextmanager
@@ -24,12 +25,12 @@ if os.path.exists("VERSION"):
     with open("VERSION", "r") as f:
         APP_VERSION = f.read().strip()
 else:
-    APP_VERSION = os.environ.get("APP_VERSION", "dev")
+    APP_VERSION = "dev"
 APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
 # Vertex defaults
 DEFAULT_PROJECT = os.environ.get("VERTEX_PROJECT")
-DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
+DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 
 # Global App State for caching model lists in memory
 app_state = {
@@ -47,10 +48,20 @@ FALLBACK_PRICING = {
     "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
     "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
     "gemini-2.5-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
-    "gemini-2.5-flash-lite": {"prompt_1m": 0.05, "completion_1m": 0.20},
     "gemini-2.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-2.0-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
+    "gemini-1.5-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
     "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
-    "gemini-1.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+}
+
+GEMINI_SPECS = {
+    "gemini-2.5-pro": {"ctx": 2000000, "out": 8192},
+    "gemini-2.5-flash": {"ctx": 1000000, "out": 8192},
+    "gemini-3.5-flash": {"ctx": 1000000, "out": 8192},
+    "gemini-3.1-flash-lite": {"ctx": 1000000, "out": 8192},
+    "gemini-2.0-flash-exp": {"ctx": 1048576, "out": 8192},
+    "gemini-1.5-pro": {"ctx": 2097152, "out": 8192},
+    "gemini-1.5-flash": {"ctx": 1048576, "out": 8192},
 }
 
 def extract_capabilities(description: str, model_id: str) -> Dict[str, bool]:
@@ -96,7 +107,7 @@ async def get_openrouter_models() -> List[Dict]:
                         "prompt_1m": float(m.get("pricing", {}).get("prompt", 0)) * 1_000_000,
                         "completion_1m": float(m.get("pricing", {}).get("completion", 0)) * 1_000_000
                     },
-                    "context_length": m.get("context_length", 0),
+                    "max_input_tokens": m.get("context_length", 0),
                     "max_output_tokens": m.get("top_provider", {}).get("max_completion_tokens", 0),
                     "capabilities": extract_capabilities(m.get("description", ""), m["id"])
                 })
@@ -119,214 +130,148 @@ def get_google_access_token():
         return None
 
 async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
-    """Fetch model metadata from Vertex AI API using canonical model ID format."""
+    """Fetch technical limits (tokens) for a canonical model ID."""
     token = get_google_access_token()
-    if not token:
-        print("DEBUG: No token")
-        return {}
-
-    # Expected input format: 'vertex_ai/gemini-2.5-flash'
-    # Canonical publisher ID: 'publishers/google/models/gemini-2.5-flash'
-    model_part = model_id.split("/")[-1]
-    url = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model_part}"
-    print(f"DEBUG: Fetching metadata for {model_id} -> URL={url}")
-
-    headers = {"Authorization": f"Bearer {token}"}
+    if not token: return {}
+    
+    # model_id expected as 'gemini-1.5-pro'
+    url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models/{model_id}"
+    
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.get(url, headers=headers)
+            resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             if resp.status_code == 200:
                 data = resp.json()
+                print(f"DEBUG: Found metadata for {model_id}: {data}")
                 return {
                     "max_input_tokens": int(data.get("inputTokenLimit", 0)),
                     "max_output_tokens": int(data.get("outputTokenLimit", 0))
                 }
             else:
-                print(f"DEBUG: Metadata API Error for {model_part}: {resp.status_code} - {resp.text}")
+                print(f"DEBUG: Metadata API Error for {model_id}: {resp.status_code} - {resp.text}")
         except Exception as e:
-            print(f"Exception in fetch_vertex_model_metadata: {e}")
+            print(f"Exception in fetch_vertex_model_metadata for {model_id}: {e}")
     return {}
 
-    # Vertex model ID format needs to be 'publishers/google/models/{MODEL_ID}'
-    # We have 'vertex_ai/{short_id}'
-    short_id = model_id.split("/")[-1]
-    url = f"https://{DEFAULT_LOCATION}-aiplatform.googleapis.com/v1/publishers/google/models/{short_id}"
-
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "max_input_tokens": int(data.get("inputTokenLimit", 0)),
-                    "max_output_tokens": int(data.get("outputTokenLimit", 0))
-                }
-            else:
-                print(f"Vertex API Error: {resp.status_code} - {resp.text}")
-        except Exception as e:
-            print(f"Exception in fetch_vertex_model_metadata: {e}")
-    print(f"DEBUG: URL={url}, Token={token[:10]}..."); return {}
-
-async def fetch_vertex_billing_skus() -> List[Dict]:
-    """Fetch all Vertex AI Gemini SKUs with capabilities and metadata."""
-    loc = DEFAULT_LOCATION
+async def fetch_vertex_billing_skus() -> Dict[str, Dict]:
+    """Fetch pricing data for Gemini models from the Billing API."""
     token = get_google_access_token()
-    if not token:
-        return []
+    if not token: return {}
 
     try:
         url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, headers=headers)
-            if resp.status_code != 200:
-                return []
-
+            if resp.status_code != 200: return {}
+            
             skus = resp.json().get("skus", [])
-            models_data = {}
-
+            pricing_map = {} # model_base_name -> pricing
+            
             for s in skus:
                 desc = s.get("description", "")
-                regions = s.get("serviceRegions", [])
+                if "Gemini" not in desc: continue
+                if any(x in desc for x in ["High Priority", "Provisioned", "Commitment", "Reserved"]): continue
 
-                if "Gemini" in desc and (loc in regions or "global" in [r.lower() for r in regions]):
-                    if any(x in desc for x in ["High Priority", "Provisioned", "Commitment", "Reserved"]):
-                        continue
-
-                    name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
-                    if name_parts.startswith("Gemini"):
-                        model_name = name_parts
-                        short_id = model_name.lower().replace(" ", "-")
-                        if short_id not in models_data:
-                            # Fetch metadata separately
-                            meta = await fetch_vertex_model_metadata(f"vertex_ai/{short_id}")
-                            models_data[short_id] = {
-                                "id": f"vertex_ai/{short_id}",
-                                "name": model_name,
-                                "brand": "google",
-                                "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
-                                "context_length": meta.get("max_input_tokens", 0),
-                                "max_output_tokens": meta.get("max_output_tokens", 0),
-                                "capabilities": extract_capabilities(desc, short_id)
-                            }
-                        
-                        pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
-                        rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
-                        price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
-                        
-                        if "Input" in desc:
-                            models_data[short_id]["pricing"]["prompt"] = price_usd
-                            models_data[short_id]["pricing"]["prompt_1m"] = price_usd * 1_000_000
-                        elif "Output" in desc:
-                            models_data[short_id]["pricing"]["completion"] = price_usd
-                            models_data[short_id]["pricing"]["completion_1m"] = price_usd * 1_000_000
-
-            return list(models_data.values())
+                # Extract base name like 'Gemini 1.5 Pro'
+                name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
+                model_key = name_parts.lower().replace(" ", "-")
+                
+                if model_key not in pricing_map:
+                    pricing_map[model_key] = {"prompt_1m": 0.0, "completion_1m": 0.0}
+                
+                pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
+                rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
+                price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
+                
+                if "Input" in desc: pricing_map[model_key]["prompt_1m"] = price_usd * 1_000_000
+                elif "Output" in desc: pricing_map[model_key]["completion_1m"] = price_usd * 1_000_000
+            
+            return pricing_map
     except Exception as e:
         print(f"Error fetching Vertex SKUs: {e}")
-        return []
+        return {}
 
-async def fetch_vertex_publisher_models(client: httpx.AsyncClient, token: str, proj: str, loc: str) -> List[str]:
-    """Fetch foundation models using the modern unified google-genai SDK."""
+async def fetch_vertex_publisher_models() -> List[str]:
+    """List all available foundation models in the region using GenAI SDK."""
     try:
         from google import genai
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
         creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
+        client = genai.Client(vertexai=True, project=DEFAULT_PROJECT, location=DEFAULT_LOCATION, credentials=creds)
         
-        client_genai = genai.Client(vertexai=True, project=proj, location=loc, credentials=creds)
-        
-        available_ids = []
-        for model in client_genai.models.list():
-            model_id = model.name.split("/")[-1]
-            if "gemini" in model_id.lower():
-                print(f"DEBUG: Found model: {model.name}"); available_ids.append(model_id)
-        
-        available_ids.extend([
-            "gemini-flash-latest", "gemini-pro-latest", "gemini-flash-lite-latest",
-            "gemini-2.0-flash-exp", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest",
-            "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro"
-        ])
-        return list(set(available_ids))
+        ids = []
+        for model in client.models.list():
+            mid = model.name.split("/")[-1]
+            if "gemini" in mid.lower(): ids.append(mid)
+        return list(set(ids))
     except Exception as e:
-        print(f"GenAI SDK Error: {e}")
-        return ["gemini-3.5-flash", "gemini-3.5-pro", "gemini-3.1-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
-
-async def test_model_availability(client: httpx.AsyncClient, model_id: str) -> bool:
-    """Send a tiny prompt to LiteLLM proxy to test if model is available."""
-    try:
-        headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
-        payload = {"model": model_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
-        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=5.0)
-        return resp.status_code == 200
-    except: return False
+        print(f"SDK Discovery Error: {e}")
+        return ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]
 
 async def verify_and_cache_vertex_models():
-    """Concurrently verify a list of potential Gemini models (2026 series)."""
-    print(f"Starting definitive verification for {DEFAULT_LOCATION}...")
-    proj = DEFAULT_PROJECT
-    loc = DEFAULT_LOCATION
-    token = get_google_access_token()
+    """Discover and merge model data using SDK and Billing API."""
+    print(f"Starting Vertex discovery for {DEFAULT_LOCATION} (Universal Mode)...")
+    
+    # 1. Discover canonical IDs via SDK
+    model_ids = await fetch_vertex_publisher_models()
+    
+    # 2. Fetch Pricing from Billing API
+    pricing_map = await fetch_vertex_billing_skus()
+    
+    models = []
+    for mid in model_ids:
+        # Match Pricing
+        p_data = {"prompt_1m": 0.0, "completion_1m": 0.0}
+        
+        # Heuristic: search for best pricing match in billing keys
+        # Primary search keys: mid, mid-text-input, mid-global-text-input
+        search_keys = [mid, f"{mid}-text-input", f"{mid}-global-text-input", f"{mid}-input"]
+        for sk in search_keys:
+            if sk in pricing_map:
+                p_data["prompt_1m"] = pricing_map[sk]["prompt_1m"]
+                break
+        
+        search_keys_out = [f"{mid}-text-output", f"{mid}-global-text-output", f"{mid}-output"]
+        for sk in search_keys_out:
+            if sk in pricing_map:
+                p_data["completion_1m"] = pricing_map[sk]["completion_1m"]
+                break
+        
+        # Fallback to static pricing if still 0
+        if p_data["prompt_1m"] == 0:
+            base = "-".join(mid.split("-")[:3])
+            if base in FALLBACK_PRICING:
+                p_data = FALLBACK_PRICING[base]
 
-    if not os.path.exists(VERTEX_CREDENTIALS) or not proj:
-        app_state["vx_models"] = []
-        return
+        # Technical Specs (Hardcoded table for reliability)
+        spec = GEMINI_SPECS.get(mid, {"ctx": 1000000, "out": 8192})
+        # If mid contains a version number like -001, try stripping it
+        if mid not in GEMINI_SPECS:
+            base_id = "-".join(mid.split("-")[:3])
+            spec = GEMINI_SPECS.get(base_id, spec)
 
-    candidates = {}
-    try:
-        async with httpx.AsyncClient() as client:
-            api_ids = await fetch_vertex_publisher_models(client, token, proj, loc)
-            for a_id in api_ids:
-                candidates[f"vertex_ai/{a_id}"] = {
-                    "id": f"vertex_ai/{a_id}",
-                    "name": a_id.replace("-", " ").title(),
-                    "brand": "google",
-                    "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
-                    "context_length": "Variable",
-                    "capabilities": extract_capabilities("", a_id)
-                }
+        models.append({
+            "id": f"vertex_ai/{mid}",
+            "name": mid.replace("-", " ").title(),
+            "brand": "google",
+            "pricing": {
+                "prompt": p_data["prompt_1m"] / 1_000_000,
+                "completion": p_data["completion_1m"] / 1_000_000,
+                "prompt_1m": p_data["prompt_1m"],
+                "completion_1m": p_data["completion_1m"]
+            },
+            "max_input_tokens": spec["ctx"],
+            "max_output_tokens": spec["out"],
+            "capabilities": extract_capabilities("", mid)
+        })
 
-            billing_models = await fetch_vertex_billing_skus()
-            for b_m in billing_models:
-                candidates[b_m["id"]] = b_m
-
-            # Fallback pricing
-            for c_id, c_data in candidates.items():
-                m_short = c_id.split("/")[-1]
-                base_name = m_short
-                if m_short not in FALLBACK_PRICING:
-                    parts = m_short.split("-")
-                    if len(parts) > 3: base_name = "-".join(parts[:3])
-                if base_name in FALLBACK_PRICING:
-                    fb = FALLBACK_PRICING[base_name]
-                    if c_data["pricing"]["prompt_1m"] == 0: c_data["pricing"]["prompt_1m"] = fb["prompt_1m"]
-                    if c_data["pricing"]["completion_1m"] == 0: c_data["pricing"]["completion_1m"] = fb["completion_1m"]
-
-            verified_models = []
-            semaphore = asyncio.Semaphore(20)
-            async def check(m_data):
-                async with semaphore:
-                    try:
-                        headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
-                        payload = {"model": m_data["id"], "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
-                        resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=10.0)
-                        if resp.status_code == 200: print(f"DEBUG: Verified model: {m_data['id']}"); return m_data
-                        else: print(f"DEBUG: Model {m_data['id']} failed ping: {resp.status_code} - {resp.text}")
-                    except: pass
-                return None
-            
-            tasks = [check(m_data) for m_data in candidates.values()]
-            results = await asyncio.gather(*tasks)
-            verified_models = [r for r in results if r]
-            
-        verified_models = sorted(verified_models, key=lambda x: x["name"])
-        app_state["vx_models"] = verified_models
-        app_state["last_verification_time"] = time.time()
-        with open(CACHE_FILE, "w") as f:
-            json.dump({"timestamp": app_state["last_verification_time"], "models": verified_models}, f)
-            
-    finally:
-        print(f"Vertex verification finished. Found {len(app_state['vx_models'])} functional models.")
+    verified_models = sorted(models, key=lambda x: x["name"])
+    app_state["vx_models"] = verified_models
+    app_state["last_verification_time"] = time.time()
+    with open(CACHE_FILE, "w") as f:
+        json.dump({"timestamp": app_state["last_verification_time"], "models": verified_models}, f)
+    print(f"Vertex discovery finished. Found {len(verified_models)} models.")
 
 async def initial_load_models():
     """Load OpenRouter and check cache for Vertex on startup."""
@@ -368,15 +313,53 @@ async def index(request: Request):
 
 @app.post("/test")
 async def test_model(model_id: str = Form(...)):
+    """Test model availability directly via provider APIs (bypassing proxy)."""
     try:
-        headers = {"Authorization": f"Bearer {MASTER_KEY}", "Content-Type": "application/json"}
-        payload = {"model": model_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10}
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(PROXY_URL, headers=headers, json=payload, timeout=15.0)
-            if resp.status_code == 200:
-                return {"status": "success", "response": resp.json()["choices"][0]["message"]["content"]}
-            return {"status": "error", "message": resp.text}
-    except Exception as e: return {"status": "error", "message": str(e)}
+        is_embed = "embed" in model_id.lower()
+        
+        if model_id.startswith("vertex_ai/"):
+            short_id = model_id.split("/")[-1]
+            scopes = ['https://www.googleapis.com/auth/cloud-platform']
+            creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
+            client = genai.Client(vertexai=True, project=DEFAULT_PROJECT, location=DEFAULT_LOCATION, credentials=creds)
+            
+            try:
+                if is_embed:
+                    # Test embedding models
+                    client.models.embed_content(model=short_id, contents="ping")
+                    return {"status": "success", "response": "Embedding OK"}
+                else:
+                    # Test chat/text models
+                    resp = client.models.generate_content(model=short_id, contents="ping")
+                    return {"status": "success", "response": resp.text}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+        elif model_id.startswith("openrouter/"):
+            or_id = model_id.replace("openrouter/", "")
+            headers = {
+                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
+                "Content-Type": "application/json"
+            }
+            
+            if is_embed:
+                url = "https://openrouter.ai/api/v1/embeddings"
+                payload = {"model": or_id, "input": "ping"}
+            else:
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                payload = {"model": or_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 10}
+
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    res_text = "Embedding OK" if is_embed else res_json["choices"][0]["message"]["content"]
+                    return {"status": "success", "response": res_text}
+                return {"status": "error", "message": resp.text}
+                
+        return {"status": "error", "message": "Unknown provider prefix"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/force-refresh")
 async def force_refresh():
@@ -435,7 +418,7 @@ async def sync_models(request: Request):
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
         # Get context window and other metadata
-        ctx = m_data.get("context_length"); print(f"DEBUG: mid={mid}, ctx={ctx}")
+        ctx = m_data.get("max_input_tokens"); print(f"DEBUG: mid={mid}, ctx={ctx}")
         max_out = m_data.get("max_output_tokens") or m_data.get("max_completion_tokens")
         
         try:
@@ -476,7 +459,7 @@ async def sync_models(request: Request):
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
                 "vertex_project": "os.environ/VERTEX_PROJECT",
-                "vertex_location": "os.environ/VERTEX_LOCATION",
+                "vertex_location": "global",
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
             # For Vertex, also provide character-based pricing as it's common for Gemini
@@ -489,20 +472,7 @@ async def sync_models(request: Request):
     return {"status": "success", "updated_models": len(new_model_list)}
 
 
-@app.get("/list-valid-models")
-async def list_valid_models():
-    token = get_google_access_token()
-    if not token: return {"error": "No token"}
-    url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models"
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code == 200:
-                return [m.get("name") for m in resp.json().get("models", [])]
-            return {"error": resp.text}
-        except Exception as e:
-            return {"error": str(e)}
+
 
 @app.get("/api/models")
 async def api_models():
