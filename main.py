@@ -12,14 +12,16 @@ from google import genai
 from google.oauth2 import service_account
 from typing import List, Dict
 from contextlib import asynccontextmanager
+from app.database import init_db, get_all_settings, set_setting, get_setting
 
-# --- Config Paths ---
-CONFIG_PATH = os.environ.get("LITELLM_CONFIG", "/app/config/config.yaml")
-VERTEX_CREDENTIALS = os.environ.get("VERTEX_CREDENTIALS_PATH", "/app/vertex_credentials.json")
+# --- Default Paths & Keys (Internal Fallbacks) ---
+DEFAULT_CONFIG_PATH = "/app/config/config.yaml"
+DEFAULT_VERTEX_CREDS = "/app/vertex_credentials.json"
 PROXY_URL = "http://litellm:4000/v1/chat/completions"
-MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "sk-local-wileyriley-gateway-12345")
+MASTER_KEY_DEFAULT = "sk-local-wileyriley-gateway-12345"
 CACHE_FILE = "/app/config/verified_models_cache.json"
 CACHE_EXPIRY_DAYS = 7
+
 # App Versioning
 if os.path.exists("VERSION"):
     with open("VERSION", "r") as f:
@@ -28,16 +30,21 @@ else:
     APP_VERSION = "dev"
 APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 
-# Vertex defaults
-DEFAULT_PROJECT = os.environ.get("VERTEX_PROJECT")
-DEFAULT_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
-
-# Global App State for caching model lists in memory
+# Global App State
 app_state = {
     "or_models": [],
     "vx_models": [],
-    "last_verification_time": 0
+    "last_verification_time": 0,
+    "settings": {} # Loaded from DB on startup
 }
+
+def get_app_setting(key: str, default=None):
+    """Helper to get setting from app_state or environment."""
+    return app_state["settings"].get(key) or os.environ.get(key) or default
+
+async def refresh_app_settings():
+    """Load settings from DB into memory."""
+    app_state["settings"] = await get_all_settings()
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -122,7 +129,7 @@ def get_google_access_token():
         from google.auth.transport.requests import Request as AuthRequest
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
         creds = service_account.Credentials.from_service_account_file(
-            VERTEX_CREDENTIALS, scopes=scopes)
+            get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS), scopes=scopes)
         creds.refresh(AuthRequest())
         return creds.token
     except Exception as e:
@@ -135,7 +142,7 @@ async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
     if not token: return {}
     
     # model_id expected as 'gemini-1.5-pro'
-    url = f"https://aiplatform.googleapis.com/v1/projects/{DEFAULT_PROJECT}/locations/{DEFAULT_LOCATION}/publishers/google/models/{model_id}"
+    url = f"https://aiplatform.googleapis.com/v1/projects/{get_app_setting('VERTEX_PROJECT')}/locations/{get_app_setting('VERTEX_LOCATION', 'global')}/publishers/google/models/{model_id}"
     
     async with httpx.AsyncClient() as client:
         try:
@@ -197,8 +204,8 @@ async def fetch_vertex_publisher_models() -> List[str]:
     try:
         from google import genai
         scopes = ['https://www.googleapis.com/auth/cloud-platform']
-        creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
-        client = genai.Client(vertexai=True, project=DEFAULT_PROJECT, location=DEFAULT_LOCATION, credentials=creds)
+        creds = service_account.Credentials.from_service_account_file(get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS), scopes=scopes)
+        client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global'), credentials=creds)
         
         ids = []
         for model in client.models.list():
@@ -211,7 +218,7 @@ async def fetch_vertex_publisher_models() -> List[str]:
 
 async def verify_and_cache_vertex_models():
     """Discover and merge model data using SDK and Billing API."""
-    print(f"Starting Vertex discovery for {DEFAULT_LOCATION} (Universal Mode)...")
+    print(f"Starting Vertex discovery for {get_app_setting('VERTEX_LOCATION', 'global')} (Universal Mode)...")
     
     # 1. Discover canonical IDs via SDK
     model_ids = await fetch_vertex_publisher_models()
@@ -296,6 +303,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
+    await refresh_app_settings()
     await initial_load_models()
     yield
 
@@ -330,8 +339,8 @@ async def test_model(model_id: str = Form(...)):
         if model_id.startswith("vertex_ai/"):
             short_id = model_id.split("/")[-1]
             scopes = ['https://www.googleapis.com/auth/cloud-platform']
-            creds = service_account.Credentials.from_service_account_file(VERTEX_CREDENTIALS, scopes=scopes)
-            client = genai.Client(vertexai=True, project=DEFAULT_PROJECT, location=DEFAULT_LOCATION, credentials=creds)
+            creds = service_account.Credentials.from_service_account_file(get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS), scopes=scopes)
+            client = genai.Client(vertexai=True, project=get_app_setting("VERTEX_PROJECT"), location=get_app_setting("VERTEX_LOCATION", 'global'), credentials=creds)
             
             try:
                 if is_embed:
@@ -348,7 +357,7 @@ async def test_model(model_id: str = Form(...)):
         elif model_id.startswith("openrouter/"):
             or_id = model_id.replace("openrouter/", "")
             headers = {
-                "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
+                "Authorization": f"Bearer {get_app_setting('OPENROUTER_API_KEY')}",
                 "Content-Type": "application/json"
             }
             
@@ -389,10 +398,22 @@ async def restart_litellm():
         return {"status": "success"}
     except Exception as e: return {"status": "error", "message": str(e)}
 
+
+@app.get("/api/settings")
+async def api_get_settings():
+    return await get_all_settings()
+
+@app.post("/api/settings")
+async def api_update_settings(data: Dict[str, str]):
+    for k, v in data.items():
+        await set_setting(k, v)
+    await refresh_app_settings()
+    return {"status": "success"}
+
 @app.get("/api/config")
 async def get_config():
     try:
-        with open(CONFIG_PATH, "r") as f:
+        with open(get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH), "r") as f:
             config = yaml.safe_load(f) or {}
             model_list = config.get("model_list", [])
             # Extract IDs from litellm_params.model
@@ -422,7 +443,7 @@ async def sync_models(request: Request):
     selected_ids = form_data.getlist("models")
     all_models = app_state["or_models"] + app_state["vx_models"]
     model_map = {m["id"]: m for m in all_models}
-    with open(CONFIG_PATH, "r") as f: config = yaml.safe_load(f) or {}
+    with open(get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH), "r") as f: config = yaml.safe_load(f) or {}
     new_model_list = []
     for mid in selected_ids:
         m_data = model_map.get(mid, {})
@@ -465,11 +486,11 @@ async def sync_models(request: Request):
         if version:
             entry["model_info"]["version"] = version
         if mid.startswith("openrouter/"):
-            entry["litellm_params"]["api_key"] = "os.environ/OPENROUTER_API_KEY"
+            entry["litellm_params"]["api_key"] = get_app_setting("OPENROUTER_API_KEY")
         elif mid.startswith("vertex_ai/"):
             entry["litellm_params"].update({
-                "vertex_project": "os.environ/VERTEX_PROJECT",
-                "vertex_location": "global",
+                "vertex_project": get_app_setting("VERTEX_PROJECT"),
+                "vertex_location": get_app_setting("VERTEX_LOCATION", 'global'),
                 "vertex_credentials": "/app/vertex_credentials.json"
             })
             # For Vertex, also provide character-based pricing as it's common for Gemini
@@ -478,7 +499,7 @@ async def sync_models(request: Request):
         new_model_list.append(entry)
     wildcards = [m for m in config.get("model_list", []) if "*" in m.get("model_name", "")]
     config["model_list"] = new_model_list + wildcards
-    with open(CONFIG_PATH, "w") as f: yaml.safe_dump(config, f, sort_keys=False)
+    with open(get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH), "w") as f: yaml.safe_dump(config, f, sort_keys=False)
     return {"status": "success", "updated_models": len(new_model_list)}
 
 

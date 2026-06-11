@@ -11,3 +11,6 @@ python-multipart
 pytest
 httpx
 docker
+sqlalchemy[asyncio]
+aiosqlite
+cryptography
