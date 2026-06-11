@@ -262,11 +262,11 @@
             <div class="filter-group">
                 <span class="filter-label">Capabilities</span>
                 <div class="checkbox-group">
-                    <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vis In</label>
-                    <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vis Out</label>
-                    <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Aud In</label>
-                    <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Aud Out</label>
-                    <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Func</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vision In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vision Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Audio In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Audio Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Function</label>
                     <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
                 </div>
             </div>
@@ -306,11 +306,11 @@
                                     </div>
                                     <div class="model-specs">In: ? / Out: ?</div>
                                     <div class="capabilities">
-                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Img In</span>{% endif %}
-                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Img Out</span>{% endif %}
-                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Aud In</span>{% endif %}
-                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Aud Out</span>{% endif %}
-                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Func</span>{% endif %}
+                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
                                     </div>
                                 </div>
                                 <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
@@ -347,11 +347,11 @@
                                     </div>
                                     <div class="model-specs">In: ? / Out: ?</div>
                                     <div class="capabilities">
-                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Img In</span>{% endif %}
-                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Img Out</span>{% endif %}
-                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Aud In</span>{% endif %}
-                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Aud Out</span>{% endif %}
-                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Func</span>{% endif %}
+                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
                                     </div>
                                 </div>
                                 <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
