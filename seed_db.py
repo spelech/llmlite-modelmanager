@@ -3,7 +3,7 @@ import os
 import json
 import aiosqlite
 
-DB_PATH = "/containers/webservices/litellm/config/settings.db"
+DB_PATH = "/containers/webservices/litellm/config/modelmanager-settings.db"
 ENV_PATH = "/containers/webservices/.env"
 VERTEX_CREDS_PATH = "/containers/webservices/litellm/vertex_credentials.json"
 
