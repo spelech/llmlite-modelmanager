@@ -614,7 +614,7 @@
                     visible = name.includes(query) || id.includes(query);
                 }
 
-                if (visible && brand !== 'all' && iBrand !== brand) visible = false;
+                if (visible && selectedBrands.size > 0 && !selectedBrands.has(iBrand)) visible = false;
                 if (visible && iInPrice > maxInPrice) visible = false;
                 if (visible && iOutPrice > maxOutPrice) visible = false;
                 if (visible && imgIn && !iImgIn) visible = false;
