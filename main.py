@@ -52,14 +52,18 @@ templates = Jinja2Templates(directory="app/templates")
 # Fallback pricing table for 2026 Gemini models
 FALLBACK_PRICING = {
     "gemini-3.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
-    "gemini-3.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-3.5-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
     "gemini-3.1-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
     "gemini-3.1-flash-lite": {"prompt_1m": 0.03, "completion_1m": 0.10},
+    "gemini-3.1-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
+    "gemini-3-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
+    "gemini-3-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
     "gemini-2.5-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
-    "gemini-2.5-pro": {"prompt_1m": 3.50, "completion_1m": 10.50},
+    "gemini-2.5-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
     "gemini-2.0-flash": {"prompt_1m": 0.10, "completion_1m": 0.40},
     "gemini-1.5-pro": {"prompt_1m": 1.25, "completion_1m": 3.75},
     "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
+    "gemini-embedding": {"prompt_1m": 0.02, "completion_1m": 0.0},
 }
 
 GEMINI_SPECS = {
