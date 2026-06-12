@@ -233,24 +233,36 @@ async def verify_and_cache_vertex_models():
         p_data = {"prompt_1m": 0.0, "completion_1m": 0.0}
         
         # Heuristic: search for best pricing match in billing keys
-        # Primary search keys: mid, mid-text-input, mid-global-text-input
-        search_keys = [mid, f"{mid}-text-input", f"{mid}-global-text-input", f"{mid}-input"]
+        # Try finding a key that is a substring or base prefix
+        base_3 = "-".join(mid.split("-")[:3]) # e.g. gemini-1.5-pro
+        base_2 = "-".join(mid.split("-")[:2]) # e.g. gemini-2.5, gemini-2.0
+        
+        # Gather prospective billing search keys
+        search_keys = [mid, f"{mid}-text-input", f"{mid}-global-text-input", f"{mid}-input",
+                       base_3, f"{base_3}-text-input", f"{base_3}-global-text-input", f"{base_3}-input",
+                       base_2, f"{base_2}-text-input", f"{base_2}-input"]
+                       
         for sk in search_keys:
-            if sk in pricing_map:
+            if sk in pricing_map and pricing_map[sk]["prompt_1m"] > 0:
                 p_data["prompt_1m"] = pricing_map[sk]["prompt_1m"]
                 break
         
-        search_keys_out = [f"{mid}-text-output", f"{mid}-global-text-output", f"{mid}-output"]
+        search_keys_out = [f"{mid}-text-output", f"{mid}-global-text-output", f"{mid}-output",
+                           f"{base_3}-text-output", f"{base_3}-global-text-output", f"{base_3}-output",
+                           f"{base_2}-text-output", f"{base_2}-output"]
+                           
         for sk in search_keys_out:
-            if sk in pricing_map:
+            if sk in pricing_map and pricing_map[sk]["completion_1m"] > 0:
                 p_data["completion_1m"] = pricing_map[sk]["completion_1m"]
                 break
         
-        # Fallback to static pricing if still 0
-        if p_data["prompt_1m"] == 0:
-            base = "-".join(mid.split("-")[:3])
-            if base in FALLBACK_PRICING:
-                p_data = FALLBACK_PRICING[base]
+        # Fallback to static pricing if still 0 or incomplete
+        if p_data["prompt_1m"] == 0 or p_data["completion_1m"] == 0:
+            for b in [mid, base_3, base_2]:
+                if b in FALLBACK_PRICING:
+                    if p_data["prompt_1m"] == 0: p_data["prompt_1m"] = FALLBACK_PRICING[b]["prompt_1m"]
+                    if p_data["completion_1m"] == 0: p_data["completion_1m"] = FALLBACK_PRICING[b]["completion_1m"]
+                    break
 
         # Technical Specs (Hardcoded table for reliability)
         spec = GEMINI_SPECS.get(mid, {"ctx": 1000000, "out": 8192})
