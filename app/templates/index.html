@@ -85,6 +85,27 @@
         .checkbox-item { display: flex; align-items: center; gap: 10px; font-size: 0.85em; cursor: pointer; }
         input[type="checkbox"] { transform: scale(1.1); cursor: pointer; accent-color: var(--accent); }
 
+        .brand-filter-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .brand-filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .brand-filter-item:hover { color: var(--accent); }
+
         /* Content Area */
         .content-area {
             flex-grow: 1;
@@ -285,10 +306,10 @@
             </div>
 
             <div class="filter-group">
-                <span class="filter-label">Brand</span>
-                <select id="brandFilter" onchange="applyAllFilters()">
-                    <option value="all">All Brands</option>
-                </select>
+                <span class="filter-label">Brands</span>
+                <div id="brandFilterList" class="brand-filter-list">
+                    <!-- Populated by JS -->
+                </div>
             </div>
 
             <div class="filter-group">
@@ -535,7 +556,10 @@
 
         function applyAllFilters() {
             const query = document.getElementById('globalSearch').value.toLowerCase();
-            const brand = document.getElementById('brandFilter').value;
+            
+            const selectedBrands = new Set();
+            document.querySelectorAll('#brandFilterList input:checked').forEach(cb => selectedBrands.add(cb.value));
+            
             const maxInPrice = parseFloat(document.getElementById('maxInPrice').value) || Infinity;
             const maxOutPrice = parseFloat(document.getElementById('maxOutPrice').value) || Infinity;
             const imgIn = document.getElementById('capImageIn').checked;
@@ -619,16 +643,29 @@
             document.querySelectorAll('.model-item').forEach(item => {
                 if (item.dataset.brand) brands.add(item.dataset.brand);
             });
-            const select = document.getElementById('brandFilter');
-            const currentBrand = select.value;
-            select.innerHTML = '<option value="all">All Brands</option>';
+            const list = document.getElementById('brandFilterList');
+            
+            const checked = new Set();
+            list.querySelectorAll('input:checked').forEach(cb => checked.add(cb.value));
+            
+            list.innerHTML = '';
+            
             Array.from(brands).sort().forEach(b => {
-                const opt = document.createElement('option');
-                opt.value = b;
-                opt.innerText = b.charAt(0).toUpperCase() + b.slice(1);
-                select.appendChild(opt);
+                const label = document.createElement('label');
+                label.className = 'brand-filter-item';
+                
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = b;
+                cb.onchange = applyAllFilters;
+                if (checked.has(b)) cb.checked = true;
+                
+                const text = document.createTextNode(' ' + b.charAt(0).toUpperCase() + b.slice(1));
+                
+                label.appendChild(cb);
+                label.appendChild(text);
+                list.appendChild(label);
             });
-            select.value = currentBrand;
         }
 
         window.onload = async () => {
