@@ -162,21 +162,100 @@
         }
         .column h2 { font-size: 1em; margin: 0 0 12px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; font-weight: 500;}
 
-        .model-list { 
-            flex-grow: 1; 
-            overflow-y: auto; 
+        .model-column-content {
+            flex-grow: 1;
+            overflow-y: auto;
             padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Custom scrollbar */
+        .model-column-content::-webkit-scrollbar,
+        .model-list::-webkit-scrollbar { width: 4px; }
+        .model-column-content::-webkit-scrollbar-track,
+        .model-list::-webkit-scrollbar-track { background: transparent; }
+        .model-column-content::-webkit-scrollbar-thumb,
+        .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .model-column-content::-webkit-scrollbar-thumb:hover,
+        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Collapsible Model Section */
+        .model-section {
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: var(--radius-md);
+            padding: 8px;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            transition: background 0.15s;
+        }
+        .section-header:hover {
+            background: var(--bg-input);
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.85em;
+            color: var(--text-main);
+        }
+        .section-icon { font-size: 1.1em; }
+        
+        .section-count-badge {
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .collapse-caret {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            transition: transform 0.2s ease;
+        }
+        
+        .model-section.collapsed .collapse-caret {
+            transform: rotate(-90deg);
+        }
+        .model-section.collapsed .section-content {
+            display: none !important;
+        }
+
+        .model-list { 
+            margin-top: 8px;
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 8px;
             align-content: start;
         }
         
-        /* Custom scrollbar */
-        .model-list::-webkit-scrollbar { width: 4px; }
-        .model-list::-webkit-scrollbar-track { background: transparent; }
-        .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        .empty-section-message {
+            grid-column: 1 / -1;
+            padding: 16px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.8em;
+            font-style: italic;
+        }
 
         /* Model Card */
         .model-item { 
@@ -186,11 +265,20 @@
             display: flex; 
             align-items: center; 
             gap: 10px; 
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s;
             height: fit-content;
             border: 1px solid var(--bg-input);
+            border-left: 4px solid transparent;
         }
         .model-item:hover { background: var(--bg-input); transform: translateY(-1px); }
+        
+        /* Selected Card Visual Highlight */
+        .model-item.selected {
+            background: rgba(208, 188, 255, 0.12) !important;
+            border-color: var(--accent) !important;
+            border-left: 4px solid var(--accent) !important;
+            box-shadow: 0 2px 8px rgba(208, 188, 255, 0.08);
+        }
         
         .model-info { flex-grow: 1; min-width: 0; }
         .model-name { font-weight: 500; font-size: 0.9em; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -400,95 +488,145 @@
                 <div class="container">
                     <div class="column">
                         <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
-                        <div id="orList" class="model-list">
-                            
-                            {% for m in or_models %}
-                            
-                            <div class="model-item" 
-                                 data-name="{{ m.name | lower }}" 
-                                 data-id="{{ m.id | lower }}"
-                                 data-brand="{{ m.brand }}"
-                                 data-tier="{{ m.tier | default('moderate') }}"
-                                 data-popularity="{{ m.popularity | default(9999) }}"
-                                 data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
-                                 data-in-price="{{ m.pricing.prompt_1m }}"
-                                 data-out-price="{{ m.pricing.completion_1m }}"
-                                 data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
-                                 data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
-                                 data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
-                                 data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
-                                 data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
-                                 data-max-input="{{ m.max_input_tokens or 0 }}"
-                                 data-max-output="{{ m.max_output_tokens or 0 }}"
-                                 id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
-                                <input type="checkbox" name="models" value="{{ m.id }}">
-                                <div class="model-info">
-                                    <div class="model-name">
-                                        <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
-                                        {{ m.name }} 
+                        <div id="orList" class="model-column-content">
+                            <!-- Selected Section -->
+                            <div class="model-section" id="orSelectedSection">
+                                <div class="section-header" onclick="toggleSection('orSelectedSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">⭐</span>
+                                        <span>Selected Models</span>
+                                        <span class="section-count-badge" id="orSelectedCount">0</span>
                                     </div>
-                                    <div class="model-id">{{ m.id }}</div>
-                                    <div class="model-pricing">
-                                        In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
-                                    </div>
-                                    <div class="model-specs">In: ? / Out: ?</div>
-                                    <div class="capabilities">
-                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
-                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
-                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
-                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
-                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
-                                    </div>
+                                    <span class="collapse-caret">▼</span>
                                 </div>
-                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                <div id="orSelectedList" class="model-list section-content"></div>
                             </div>
-                            {% endfor %}
+
+                            <!-- Available Section -->
+                            <div class="model-section" id="orAvailableSection">
+                                <div class="section-header" onclick="toggleSection('orAvailableSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">📋</span>
+                                        <span>Available Models</span>
+                                        <span class="section-count-badge" id="orAvailableCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="orAvailableList" class="model-list section-content">
+                                    {% for m in or_models %}
+                                    <div class="model-item" 
+                                         data-name="{{ m.name | lower }}" 
+                                         data-id="{{ m.id | lower }}"
+                                         data-brand="{{ m.brand }}"
+                                         data-tier="{{ m.tier | default('moderate') }}"
+                                         data-popularity="{{ m.popularity | default(9999) }}"
+                                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                                         data-in-price="{{ m.pricing.prompt_1m }}"
+                                         data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                                         data-max-output="{{ m.max_output_tokens or 0 }}"
+                                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                                        <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        <div class="model-info">
+                                            <div class="model-name">
+                                                <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                {{ m.name }} 
+                                            </div>
+                                            <div class="model-id">{{ m.id }}</div>
+                                            <div class="model-pricing">
+                                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                                            </div>
+                                            <div class="model-specs">In: ? / Out: ?</div>
+                                            <div class="capabilities">
+                                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                                {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
                     <div class="column">
                         <h2>Vertex AI <span class="count-badge" id="vxCount">0</span></h2>
-                        <div id="vxList" class="model-list">
-                            {% for m in vx_models %}
-                            <div class="model-item" 
-                                 data-name="{{ m.name | lower }}" 
-                                 data-id="{{ m.id | lower }}"
-                                 data-brand="google"
-                                 data-tier="{{ m.tier | default('moderate') }}"
-                                 data-popularity="{{ m.popularity | default(9999) }}"
-                                 data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
-                                 data-in-price="{{ m.pricing.prompt_1m }}"
-                                 data-out-price="{{ m.pricing.completion_1m }}"
-                                 data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
-                                 data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
-                                 data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
-                                 data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
-                                 data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
-                                 data-max-input="{{ m.max_input_tokens or 0 }}"
-                                 data-max-output="{{ m.max_output_tokens or 0 }}"
-                                 id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
-                                <input type="checkbox" name="models" value="{{ m.id }}">
-                                <div class="model-info">
-                                    <div class="model-name">
-                                        <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
-                                        {{ m.name }}
+                        <div id="vxList" class="model-column-content">
+                            <!-- Selected Section -->
+                            <div class="model-section" id="vxSelectedSection">
+                                <div class="section-header" onclick="toggleSection('vxSelectedSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">⭐</span>
+                                        <span>Selected Models</span>
+                                        <span class="section-count-badge" id="vxSelectedCount">0</span>
                                     </div>
-                                    <div class="model-id">{{ m.id }}</div>
-                                    <div class="model-pricing">
-                                        In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
-                                    </div>
-                                    <div class="model-specs">In: ? / Out: ?</div>
-                                    <div class="capabilities">
-                                        {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
-                                        {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
-                                        {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
-                                        {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
-                                        {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
-                                    </div>
+                                    <span class="collapse-caret">▼</span>
                                 </div>
-                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                <div id="vxSelectedList" class="model-list section-content"></div>
                             </div>
-                            {% endfor %}
+
+                            <!-- Available Section -->
+                            <div class="model-section" id="vxAvailableSection">
+                                <div class="section-header" onclick="toggleSection('vxAvailableSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">📋</span>
+                                        <span>Available Models</span>
+                                        <span class="section-count-badge" id="vxAvailableCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="vxAvailableList" class="model-list section-content">
+                                    {% for m in vx_models %}
+                                    <div class="model-item" 
+                                         data-name="{{ m.name | lower }}" 
+                                         data-id="{{ m.id | lower }}"
+                                         data-brand="google"
+                                         data-tier="{{ m.tier | default('moderate') }}"
+                                         data-popularity="{{ m.popularity | default(9999) }}"
+                                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                                         data-in-price="{{ m.pricing.prompt_1m }}"
+                                         data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                                         data-max-output="{{ m.max_output_tokens or 0 }}"
+                                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                                        <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        <div class="model-info">
+                                            <div class="model-name">
+                                                <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                {{ m.name }}
+                                            </div>
+                                            <div class="model-id">{{ m.id }}</div>
+                                            <div class="model-pricing">
+                                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                                            </div>
+                                            <div class="model-specs">In: ? / Out: ?</div>
+                                            <div class="capabilities">
+                                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                                {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -692,6 +830,32 @@
             } catch (e) { alert('Error saving settings'); }
         };
 
+        function toggleSection(sectionId) {
+            const sec = document.getElementById(sectionId);
+            if (sec) {
+                sec.classList.toggle('collapsed');
+            }
+        }
+
+        function handleModelToggle(checkbox) {
+            const item = checkbox.closest('.model-item');
+            if (!item) return;
+            
+            const isVertex = item.dataset.id.startsWith('vertex_ai/');
+            const selectedList = document.getElementById(isVertex ? 'vxSelectedList' : 'orSelectedList');
+            const availableList = document.getElementById(isVertex ? 'vxAvailableList' : 'orAvailableList');
+            
+            if (checkbox.checked) {
+                item.classList.add('selected');
+                selectedList.appendChild(item);
+            } else {
+                item.classList.remove('selected');
+                availableList.appendChild(item);
+            }
+            
+            applyAllFilters();
+        }
+
         function applyAllFilters() {
             const query = document.getElementById('globalSearch').value.toLowerCase();
             
@@ -725,11 +889,16 @@
                 } catch(e) { regex = null; }
             }
 
-            let counts = { or: 0, vx: 0 };
+            let counts = {
+                orSelected: 0,
+                orAvailable: 0,
+                vxSelected: 0,
+                vxAvailable: 0
+            };
 
             document.querySelectorAll('.model-item').forEach(item => {
-                const name = item.dataset.name;
-                const id = item.dataset.id;
+                const name = item.dataset.name || '';
+                const id = item.dataset.id || '';
                 const iBrand = item.dataset.brand;
                 const iTier = item.dataset.tier || 'moderate';
                 const iInPrice = parseFloat(item.dataset.inPrice);
@@ -741,14 +910,23 @@
                 const iFunc = item.dataset.func === 'true';
                 const isSelected = item.querySelector('input[type="checkbox"]').checked;
                 
+                // Update selected visual highlight class
+                if (isSelected) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+
                 // Update human-readable tokens display
                 const specsDiv = item.querySelector('.model-specs');
-                const inLimit = parseInt(item.dataset.maxInput);
-                const outLimit = parseInt(item.dataset.maxOutput);
-                let specsText = '';
-                if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
-                if (outLimit) specsText += ` / Out: ${formatTokens(outLimit)}`;
-                specsDiv.innerText = specsText || 'In: ? / Out: ?';
+                if (specsDiv) {
+                    const inLimit = parseInt(item.dataset.maxInput);
+                    const outLimit = parseInt(item.dataset.maxOutput);
+                    let specsText = '';
+                    if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
+                    if (outLimit) specsText += ` / Out: ${formatTokens(outLimit)}`;
+                    specsDiv.innerText = specsText || 'In: ? / Out: ?';
+                }
 
                 let visible = true;
 
@@ -772,15 +950,41 @@
                 item.style.display = visible ? 'flex' : 'none';
                 
                 if (visible) {
-                    if (item.closest('#orList')) counts.or++;
-                    else counts.vx++;
+                    const parentId = item.parentElement ? item.parentElement.id : '';
+                    if (parentId === 'orSelectedList') counts.orSelected++;
+                    else if (parentId === 'orAvailableList') counts.orAvailable++;
+                    else if (parentId === 'vxSelectedList') counts.vxSelected++;
+                    else if (parentId === 'vxAvailableList') counts.vxAvailable++;
                 }
             });
 
-            const sortOrder = document.getElementById('sortOrder').value;
+            // Update empty states
+            function checkEmptyState(listId, count, msg) {
+                const list = document.getElementById(listId);
+                if (!list) return;
+                let emptyEl = list.querySelector('.empty-section-message');
+                if (count === 0) {
+                    if (!emptyEl) {
+                        emptyEl = document.createElement('div');
+                        emptyEl.className = 'empty-section-message';
+                        emptyEl.innerText = msg;
+                        list.appendChild(emptyEl);
+                    }
+                } else if (emptyEl) {
+                    emptyEl.remove();
+                }
+            }
+
+            checkEmptyState('orSelectedList', counts.orSelected, 'No models selected');
+            checkEmptyState('orAvailableList', counts.orAvailable, 'No available models matching filters');
+            checkEmptyState('vxSelectedList', counts.vxSelected, 'No models selected');
+            checkEmptyState('vxAvailableList', counts.vxAvailable, 'No available models matching filters');
+
+            const sortOrder = document.getElementById('sortOrder') ? document.getElementById('sortOrder').value : 'popularity';
             
             function sortList(listId) {
                 const list = document.getElementById(listId);
+                if (!list) return;
                 const items = Array.from(list.querySelectorAll('.model-item'));
                 items.sort((a, b) => {
                     // Always keep orphaned models at the top
@@ -788,30 +992,35 @@
                     if (!a.classList.contains('orphaned-model') && b.classList.contains('orphaned-model')) return 1;
                     
                     if (sortOrder === 'popularity') {
-                        return parseInt(a.dataset.popularity) - parseInt(b.dataset.popularity);
+                        return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
                     } else if (sortOrder === 'priceAsc') {
-                        return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
+                        return parseFloat(a.dataset.price || 0) - parseFloat(b.dataset.price || 0);
                     } else if (sortOrder === 'priceDesc') {
-                        return parseFloat(b.dataset.price) - parseFloat(a.dataset.price);
+                        return parseFloat(b.dataset.price || 0) - parseFloat(a.dataset.price || 0);
                     } else if (sortOrder === 'name') {
-                        return a.dataset.name.localeCompare(b.dataset.name);
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
                     } else if (sortOrder === 'brand') {
-                        const brandDiff = a.dataset.brand.localeCompare(b.dataset.brand);
+                        const brandDiff = (a.dataset.brand || '').localeCompare(b.dataset.brand || '');
                         if (brandDiff !== 0) return brandDiff;
-                        return a.dataset.name.localeCompare(b.dataset.name);
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
                     }
                     return 0;
                 });
                 items.forEach(item => list.appendChild(item));
             }
             
-            if (document.getElementById('sortOrder')) {
-                sortList('orList');
-                sortList('vxList');
-            }
+            sortList('orSelectedList');
+            sortList('orAvailableList');
+            sortList('vxSelectedList');
+            sortList('vxAvailableList');
 
-            document.getElementById('orCount').innerText = counts.or;
-            document.getElementById('vxCount').innerText = counts.vx;
+            document.getElementById('orSelectedCount').innerText = counts.orSelected;
+            document.getElementById('orAvailableCount').innerText = counts.orAvailable;
+            document.getElementById('orCount').innerText = counts.orSelected + counts.orAvailable;
+
+            document.getElementById('vxSelectedCount').innerText = counts.vxSelected;
+            document.getElementById('vxAvailableCount').innerText = counts.vxAvailable;
+            document.getElementById('vxCount').innerText = counts.vxSelected + counts.vxAvailable;
         }
 
         function populateBrands() {
@@ -820,6 +1029,7 @@
                 if (item.dataset.brand) brands.add(item.dataset.brand);
             });
             const list = document.getElementById('brandFilterList');
+            if (!list) return;
             
             const checked = new Set();
             list.querySelectorAll('input:checked').forEach(cb => checked.add(cb.value));
@@ -846,29 +1056,35 @@
 
         window.onload = async () => {
             populateBrands();
-            applyAllFilters();
             
             try {
                 const resp = await fetch('/api/config');
                 const data = await resp.json();
                 if (data.selected_ids) {
-                    const orList = document.getElementById('orList');
-                    const vxList = document.getElementById('vxList');
+                    const orSelectedList = document.getElementById('orSelectedList');
+                    const vxSelectedList = document.getElementById('vxSelectedList');
                     
                     data.selected_ids.forEach(id => {
                         const checkbox = document.querySelector(`input[name="models"][value="${id}"]`);
                         if (checkbox) {
                             checkbox.checked = true;
+                            const item = checkbox.closest('.model-item');
+                            if (item) {
+                                item.classList.add('selected');
+                                const isVertex = id.startsWith('vertex_ai/');
+                                const targetList = isVertex ? vxSelectedList : orSelectedList;
+                                targetList.appendChild(item);
+                            }
                         } else {
-                            // Model no longer available! Surface to top.
+                            // Model no longer available! Surface to top of selected list.
                             const isVertex = id.startsWith('vertex_ai/');
-                            const targetList = isVertex ? vxList : orList;
+                            const targetList = isVertex ? vxSelectedList : orSelectedList;
                             
                             const div = document.createElement('div');
-                            div.className = 'model-item orphaned-model';
+                            div.className = 'model-item selected orphaned-model';
                             div.style.backgroundColor = 'rgba(255, 0, 0, 0.15)';
-                            div.style.border = '1px solid #ff4444';
-                            // Add required dataset fields to prevent JS errors during filtering/sorting
+                            div.style.borderColor = '#ff4444';
+                            div.style.borderLeft = '4px solid #ff4444';
                             div.dataset.name = id;
                             div.dataset.id = id;
                             div.dataset.brand = isVertex ? 'google' : 'other';
@@ -876,7 +1092,7 @@
                             div.dataset.popularity = '-1';
                             
                             div.innerHTML = `
-                                <input type="checkbox" name="models" value="${id}" checked>
+                                <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
                                 <div class="model-info">
                                     <div class="model-name" style="color: #ff4444; font-weight: bold;">${id} (UNAVAILABLE)</div>
                                     <div class="model-id">This model is in your config but is no longer provided by the API. Uncheck to remove.</div>
@@ -888,11 +1104,14 @@
                     });
                 }
             } catch (e) { console.error("Failed to load config", e); }
+            
+            applyAllFilters();
         };
 
         async function testModel(modelId) {
             const safeId = 'item-' + modelId.replaceAll('/', '-').replaceAll('.', '-');
             const item = document.getElementById(safeId);
+            if (!item) return;
             const btn = item.querySelector('.btn-test');
             const originalText = btn.innerText;
             btn.innerText = '...'; btn.disabled = true;
@@ -941,8 +1160,6 @@
             const result = await resp.json();
             if (result.status === 'success') alert(`Updated ${result.updated_models} models!`);
         };
-
-        applyAllFilters();
     </script>
 </body>
 </html>

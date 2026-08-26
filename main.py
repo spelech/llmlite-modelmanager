@@ -569,10 +569,11 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, any]:
         if mid.startswith("openrouter/"):
             entry["litellm_params"]["api_key"] = get_app_setting("OPENROUTER_API_KEY")
         elif mid.startswith("vertex_ai/"):
+            vertex_creds = get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS)
             entry["litellm_params"].update({
                 "vertex_project": get_app_setting("VERTEX_PROJECT"),
                 "vertex_location": get_app_setting("VERTEX_LOCATION", "global"),
-                "vertex_credentials": "/app/vertex_credentials.json"
+                "vertex_credentials": vertex_creds
             })
             entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
             entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
