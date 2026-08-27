@@ -643,37 +643,13 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, any]:
             
         new_model_list.append(entry)
     
-    existing_list = config.get("model_list", [])
-    wildcards = [m for m in existing_list if "*" in m.get("model_name", "")]
-    wildcard_names = {m.get("model_name") for m in wildcards}
-    
-    # Auto-inject standard wildcards if missing
-    if "openrouter/*" not in wildcard_names:
-        wildcards.append({
-            "model_name": "openrouter/*",
-            "litellm_params": {
-                "model": "openrouter/*",
-                "api_key": "os.environ/OPENROUTER_API_KEY"
-            }
-        })
-    if "vertex_ai/*" not in wildcard_names:
-        wildcards.append({
-            "model_name": "vertex_ai/*",
-            "litellm_params": {
-                "model": "vertex_ai/*",
-                "vertex_project": "os.environ/VERTEX_PROJECT",
-                "vertex_location": "os.environ/VERTEX_LOCATION",
-                "vertex_credentials": "/app/vertex_credentials.json"
-            }
-        })
-    
-    config["model_list"] = new_model_list + wildcards
+    config["model_list"] = new_model_list
     
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, sort_keys=False)
         
     export_opencode_config(config["model_list"])
-    return {"status": "success", "updated_models": len(new_model_list), "wildcards": len(wildcards)}
+    return {"status": "success", "updated_models": len(new_model_list)}
 
 @app.post("/sync")
 async def sync_models_endpoint(request: Request):
