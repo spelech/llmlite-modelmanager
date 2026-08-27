@@ -440,7 +440,7 @@ async def force_refresh():
     await verify_and_cache_vertex_models()
     return {"status": "success"}
 
-async def verify_litellm_healthy(timeout: float = 10.0) -> bool:
+async def verify_litellm_healthy(timeout: float = 45.0) -> bool:
     """Check if LiteLLM is responding on /health."""
     urls = [
         "http://litellm:4000/health/readiness",
@@ -458,7 +458,7 @@ async def verify_litellm_healthy(timeout: float = 10.0) -> bool:
                         return True
                 except Exception:
                     pass
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.5)
     return False
 
 async def restart_litellm_internal() -> Dict[str, any]:
@@ -475,7 +475,7 @@ async def restart_litellm_internal() -> Dict[str, any]:
         container = client.containers.get("litellm")
         container.restart()
         
-        healthy = await verify_litellm_healthy(timeout=10.0)
+        healthy = await verify_litellm_healthy(timeout=45.0)
         if healthy:
             return {"status": "success", "message": "LiteLLM restarted and health verified (HTTP 200 OK)."}
         
@@ -484,7 +484,7 @@ async def restart_litellm_internal() -> Dict[str, any]:
             import shutil
             shutil.copy2(backup_path, config_path)
             container.restart()
-            await verify_litellm_healthy(timeout=10.0)
+            await verify_litellm_healthy(timeout=45.0)
             
             await send_notification(
                 title="⚠️ LiteLLM Configuration Failed & Auto-Reverted",
