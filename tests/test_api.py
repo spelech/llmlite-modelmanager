@@ -98,3 +98,32 @@ def test_api_health_check():
         response = client.post("/api/health/check")
         assert response.status_code == 200
         assert response.json()["status"] == "success"
+
+def test_restart_litellm_success():
+    mock_docker = MagicMock()
+    mock_container = MagicMock()
+    mock_docker.containers.get.return_value = mock_container
+    
+    with patch("docker.from_env", return_value=mock_docker), \
+         patch("main.verify_litellm_healthy", return_value=True):
+        response = client.post("/restart-litellm")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        mock_container.restart.assert_called_once()
+
+def test_restart_litellm_failure_and_auto_revert():
+    mock_docker = MagicMock()
+    mock_container = MagicMock()
+    mock_docker.containers.get.return_value = mock_container
+    
+    with patch("docker.from_env", return_value=mock_docker), \
+         patch("main.verify_litellm_healthy", return_value=False), \
+         patch("os.path.exists", return_value=True), \
+         patch("shutil.copy2") as mock_copy, \
+         patch("main.send_notification", return_value=None):
+        response = client.post("/restart-litellm")
+        assert response.status_code == 200
+        assert response.json()["status"] == "error"
+        assert response.json()["reverted"] is True
+        mock_copy.assert_called_once()
+        assert mock_container.restart.call_count == 2
