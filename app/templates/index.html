@@ -518,6 +518,8 @@
     <header>
         <h1>LiteLLM Model Manager</h1>
         <div class="header-actions">
+            <button type="button" class="btn-refresh" onclick="exportSelections()">📤 Export Selection</button>
+            <button type="button" class="btn-refresh" onclick="openImportModal()">📥 Import Selection</button>
             <button type="button" class="btn-refresh" onclick="forceRefresh()">Force Refresh Metadata</button>
             <button type="button" class="btn-refresh" onclick="openSettings()">Settings</button>
             <div class="header-version">v{{ version }} | {{ build_time }}</div>
@@ -840,7 +842,181 @@
         </div>
     </div>
 
+    <!-- Import Modal -->
+    <div id="importModal" class="modal" style="display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);">
+        <div style="background: var(--bg-card); margin: 6% auto; padding: 24px; border-radius: var(--radius-lg); width: 560px; max-width: 90%; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h2 style="margin: 0; font-size: 1.15em; color: var(--accent); font-weight: 700;">📥 Import Model Selection</h2>
+                <button type="button" onclick="closeImportModal()" style="background: transparent; color: var(--text-dim); font-size: 1.3em; cursor: pointer; border: none;">&times;</button>
+            </div>
+            <p style="font-size: 0.82em; color: var(--text-dim); margin-top: 0;">Upload an exported selection JSON file or paste model IDs / JSON array below to restore your selections.</p>
+            
+            <div style="margin-bottom: 14px;">
+                <input type="file" id="importFileInput" accept=".json" onchange="handleImportFile(event)" style="font-size: 0.82em; color: var(--text-main); width: 100%;">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Or Paste Model IDs / JSON</span>
+                <textarea id="importTextarea" rows="8" placeholder='["openrouter/anthropic/claude-3.7-sonnet", "vertex_ai/gemini-2.5-flash"]' style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); font-size: 0.82em; width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+            </div>
+
+            <div style="margin-top: 18px; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-refresh" onclick="closeImportModal()">Cancel</button>
+                <button type="button" class="btn-sync" onclick="applyImportedSelection()" style="padding: 8px 20px; background: var(--accent); color: var(--on-accent); border-radius: var(--radius-pill); font-weight: 700;">Apply Selection</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        function exportSelections() {
+            const selectedCheckboxes = document.querySelectorAll('input[name="models"]:checked');
+            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                alert('No models currently selected to export.');
+                return;
+            }
+            
+            const exportData = {
+                app: "LiteLLM Model Manager",
+                version: "{{ version }}",
+                exported_at: new Date().toISOString(),
+                count: selectedIds.length,
+                selected_models: selectedIds
+            };
+            
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `litellm_selected_models_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function openImportModal() {
+            document.getElementById('importTextarea').value = '';
+            document.getElementById('importFileInput').value = '';
+            document.getElementById('importModal').style.display = 'block';
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none';
+        }
+
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('importTextarea').value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        function applyImportedSelection() {
+            const raw = document.getElementById('importTextarea').value.trim();
+            if (!raw) {
+                alert('Please select a file or paste JSON / model IDs.');
+                return;
+            }
+
+            let ids = [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    ids = parsed;
+                } else if (parsed && Array.isArray(parsed.selected_models)) {
+                    ids = parsed.selected_models;
+                } else if (parsed && Array.isArray(parsed.models)) {
+                    ids = parsed.models;
+                }
+            } catch (e) {
+                ids = raw.split(/[\n,]+/).map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+            }
+
+            if (!ids || ids.length === 0) {
+                alert('Could not parse any model IDs from input.');
+                return;
+            }
+
+            // Uncheck all current checkboxes first
+            document.querySelectorAll('input[name="models"]').forEach(cb => {
+                cb.checked = false;
+                const item = cb.closest('.model-item');
+                if (item) {
+                    item.classList.remove('selected');
+                    const isVertex = (item.dataset.id || '').startsWith('vertex_ai/');
+                    const availList = document.getElementById(isVertex ? 'vxAvailableList' : 'orAvailableList');
+                    if (availList && item.parentElement !== availList) {
+                        availList.appendChild(item);
+                    }
+                }
+            });
+
+            // Now check and move the imported models
+            const orSelectedList = document.getElementById('orSelectedList');
+            const vxSelectedList = document.getElementById('vxSelectedList');
+            let matchedCount = 0;
+
+            ids.forEach(id => {
+                const cb = document.querySelector(`input[name="models"][value="${id}"]`);
+                if (cb) {
+                    cb.checked = true;
+                    matchedCount++;
+                    const item = cb.closest('.model-item');
+                    if (item) {
+                        item.classList.add('selected');
+                        const isVertex = id.startsWith('vertex_ai/');
+                        const targetList = isVertex ? vxSelectedList : orSelectedList;
+                        if (targetList) targetList.appendChild(item);
+                    }
+                } else {
+                    matchedCount++;
+                    const isVertex = id.startsWith('vertex_ai/');
+                    const targetList = isVertex ? vxSelectedList : orSelectedList;
+                    if (targetList) {
+                        const div = document.createElement('div');
+                        div.className = 'model-item selected orphaned-model';
+                        div.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+                        div.style.borderColor = '#f87171';
+                        div.style.borderLeft = '4px solid #f87171';
+                        div.dataset.name = id;
+                        div.dataset.id = id;
+                        div.dataset.brand = isVertex ? 'google' : 'other';
+                        div.dataset.price = '0';
+                        div.dataset.popularity = '-1';
+                        div.innerHTML = `
+                            <div class="model-checkbox-wrap">
+                                <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
+                            </div>
+                            <div class="model-info">
+                                <div class="model-header-row">
+                                    <div class="model-title-wrap">
+                                        <span class="model-tier tier-frontier" style="background: rgba(248, 113, 113, 0.2); color: #f87171; border-color: #f87171;">UNAVAILABLE</span>
+                                        <span class="model-name" style="color: #f87171; font-weight: bold;" title="${id}">${id}</span>
+                                    </div>
+                                </div>
+                                <div class="model-id">Imported model not currently in catalog. Uncheck to remove.</div>
+                                <div class="model-meta-row">
+                                    <span class="model-specs">In: ? · Out: ?</span>
+                                </div>
+                            </div>
+                        `;
+                        targetList.prepend(div);
+                    }
+                }
+            });
+
+            closeImportModal();
+            applyAllFilters();
+            alert(`✅ Successfully imported ${matchedCount} model selections! Click 'Save & Sync' (FAB or submit) to apply to LiteLLM.`);
+        }
+
         function formatTokens(num) {
             if (!num || num === 0) return '0';
             if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
