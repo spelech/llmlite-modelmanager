@@ -186,15 +186,10 @@ async def remove_model(model_id: str) -> Dict[str, any]:
 @mcp.tool
 async def restart_litellm() -> Dict[str, any]:
     """
-    Restart the LiteLLM container to force reload of configurations and routing tables.
+    Restart the LiteLLM container with health check verification and automatic rollback on failure.
     """
-    try:
-        import docker
-        client = docker.from_env()
-        client.containers.get("litellm").restart()
-        return {"status": "success", "message": "LiteLLM container restarted successfully"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from main import restart_litellm_internal
+    return await restart_litellm_internal()
 
 @mcp.tool
 async def get_settings() -> Dict[str, str]:

@@ -440,15 +440,72 @@ async def force_refresh():
     await verify_and_cache_vertex_models()
     return {"status": "success"}
 
-@app.post("/restart-litellm")
-async def restart_litellm_endpoint():
+async def verify_litellm_healthy(timeout: float = 10.0) -> bool:
+    """Check if LiteLLM is responding on /health."""
+    urls = [
+        "http://litellm:4000/health/readiness",
+        "http://litellm:4000/health",
+        "http://10.0.0.10:8448/health/readiness",
+        "http://10.0.0.10:8448/health"
+    ]
+    start = time.time()
+    async with httpx.AsyncClient(timeout=2.0) as client:
+        while time.time() - start < timeout:
+            for url in urls:
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code in [200, 204]:
+                        return True
+                except Exception:
+                    pass
+            await asyncio.sleep(1.0)
+    return False
+
+async def restart_litellm_internal() -> Dict[str, any]:
+    """
+    Restarts LiteLLM container and verifies health.
+    If unhealthy, automatically reverts to config.yaml.bak and restores healthy state.
+    """
+    config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
+    backup_path = config_path + ".bak"
+    
     try:
         import docker
         client = docker.from_env()
-        client.containers.get("litellm").restart()
-        return {"status": "success"}
+        container = client.containers.get("litellm")
+        container.restart()
+        
+        healthy = await verify_litellm_healthy(timeout=10.0)
+        if healthy:
+            return {"status": "success", "message": "LiteLLM restarted and health verified (HTTP 200 OK)."}
+        
+        # If not healthy, attempt automatic rollback
+        if os.path.exists(backup_path):
+            import shutil
+            shutil.copy2(backup_path, config_path)
+            container.restart()
+            await verify_litellm_healthy(timeout=10.0)
+            
+            await send_notification(
+                title="⚠️ LiteLLM Configuration Failed & Auto-Reverted",
+                body="New configuration caused LiteLLM to fail health checks after restart. The previous valid configuration was automatically restored.",
+                notification_type="error",
+                tags="warning,rotate"
+            )
+            
+            return {
+                "status": "error",
+                "reverted": True,
+                "message": "LiteLLM failed health checks after restart! Automatically reverted to previous valid configuration and restored service."
+            }
+        else:
+            return {"status": "error", "reverted": False, "message": "LiteLLM failed health checks after restart, no backup configuration found."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.post("/restart-litellm")
+async def restart_litellm_endpoint():
+    return await restart_litellm_internal()
 
 @app.get("/api/settings")
 async def api_get_settings():
@@ -537,13 +594,19 @@ async def sync_opencode():
     return {"status": "error", "message": "Config file not found"}
 
 async def sync_models_internal(selected_ids: List[str]) -> Dict[str, any]:
-    """Core logic to sync selected models into LiteLLM config and OpenCode config."""
+    """Core logic to sync selected models into LiteLLM config and OpenCode config with wildcard injection and safety backup."""
     all_models = app_state["or_models"] + app_state["vx_models"]
     model_map = {m["id"]: m for m in all_models}
     
     config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
     config = {}
     if os.path.exists(config_path):
+        import shutil
+        try:
+            shutil.copy2(config_path, config_path + ".bak")
+        except Exception as e:
+            print(f"Warning: Failed to create config backup: {e}")
+
         with open(config_path, "r") as f:
             config = yaml.safe_load(f) or {}
     
@@ -582,6 +645,27 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, any]:
     
     existing_list = config.get("model_list", [])
     wildcards = [m for m in existing_list if "*" in m.get("model_name", "")]
+    wildcard_names = {m.get("model_name") for m in wildcards}
+    
+    # Auto-inject standard wildcards if missing
+    if "openrouter/*" not in wildcard_names:
+        wildcards.append({
+            "model_name": "openrouter/*",
+            "litellm_params": {
+                "model": "openrouter/*",
+                "api_key": "os.environ/OPENROUTER_API_KEY"
+            }
+        })
+    if "vertex_ai/*" not in wildcard_names:
+        wildcards.append({
+            "model_name": "vertex_ai/*",
+            "litellm_params": {
+                "model": "vertex_ai/*",
+                "vertex_project": "os.environ/VERTEX_PROJECT",
+                "vertex_location": "os.environ/VERTEX_LOCATION",
+                "vertex_credentials": "/app/vertex_credentials.json"
+            }
+        })
     
     config["model_list"] = new_model_list + wildcards
     
@@ -589,7 +673,7 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, any]:
         yaml.safe_dump(config, f, sort_keys=False)
         
     export_opencode_config(config["model_list"])
-    return {"status": "success", "updated_models": len(new_model_list)}
+    return {"status": "success", "updated_models": len(new_model_list), "wildcards": len(wildcards)}
 
 @app.post("/sync")
 async def sync_models_endpoint(request: Request):

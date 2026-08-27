@@ -5,45 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LiteLLM Model Manager</title>
     <style>
-
         :root {
-            /* Dark Mode (Default) - Material You M3 */
-            --bg-body: #141218;
-            --bg-card: #211f26;
-            --bg-input: #36343b;
-            --text-main: #e6e0e9;
-            --text-dim: #cac4d0;
-            --accent: #d0bcff;
-            --accent-hover: #e8def8;
-            --on-accent: #381e72;
-            --border: #49454f;
-            --success: #81c995;
-            --warning: #f29900;
-            --danger: #f2b8b5;
-            --purple: #d0bcff;
+            /* Dusk / Twilight Palette */
+            --bg-body: #0c0e17;
+            --bg-card: #141726;
+            --bg-card-hover: #1c2035;
+            --bg-input: #1f233a;
+            --bg-section: #101220;
+            --text-main: #f1f5f9;
+            --text-dim: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #a78bfa;
+            --accent-hover: #c4b5fd;
+            --on-accent: #170d36;
+            --border: #262b42;
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --success: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --purple: #c084fc;
             
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
             --radius-pill: 50px;
-        }
-
-        @media (prefers-color-scheme: light) {
-            :root {
-                --bg-body: #fef7ff;
-                --bg-card: #f3edf7;
-                --bg-input: #e7e0ec;
-                --text-main: #1d1b20;
-                --text-dim: #49454f;
-                --accent: #6750a4;
-                --accent-hover: #e8def8;
-                --on-accent: #ffffff;
-                --border: #cac4d0;
-                --success: #146c2e;
-                --warning: #b3261e;
-                --danger: #b3261e;
-                --purple: #6750a4;
-            }
         }
 
         body { 
@@ -65,13 +50,13 @@
             align-items: center; 
             padding: 8px 16px; 
             background: var(--bg-card);
-            border-bottom: 1px solid var(--bg-input); 
+            border-bottom: 1px solid var(--border); 
             flex-shrink: 0;
             z-index: 100;
         }
-        header h1 { margin: 0; font-size: 1.2em; color: var(--accent); font-weight: 600; letter-spacing: -0.5px;}
-        .header-actions { display: flex; align-items: center; gap: 12px; margin: 0; }
-        .header-version { font-size: 0.75em; color: var(--text-dim); }
+        header h1 { margin: 0; font-size: 1.15em; color: var(--accent); font-weight: 600; letter-spacing: -0.3px;}
+        .header-actions { display: flex; align-items: center; gap: 10px; margin: 0; }
+        .header-version { font-size: 0.72em; color: var(--text-dim); font-family: monospace; }
 
         .main-layout {
             display: flex;
@@ -81,63 +66,66 @@
 
         /* Sidebar */
         .sidebar {
-            width: 240px;
+            width: 230px;
             background: var(--bg-body);
-            padding: 16px;
+            padding: 14px;
             overflow-y: auto;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            border-right: 1px solid var(--bg-input);
+            gap: 14px;
+            border-right: 1px solid var(--border);
         }
-        .sidebar h2 { font-size: 0.85em; margin: 0; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.5px; }
+        .sidebar h2 { font-size: 0.8em; margin: 0; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.5px; }
 
-        .filter-group { display: flex; flex-direction: column; gap: 6px; }
-        .filter-label { font-size: 0.7em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-label { font-size: 0.68em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; }
         
         input[type="text"], input[type="number"], input[type="password"], select { 
             background: var(--bg-input); 
-            border: none; 
+            border: 1px solid var(--border); 
             color: var(--text-main); 
-            padding: 8px 12px; 
+            padding: 6px 10px; 
             border-radius: var(--radius-sm); 
-            font-size: 0.85em;
+            font-size: 0.82em;
             outline: none;
-            transition: box-shadow 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        input:focus, select:focus { box-shadow: 0 0 0 2px var(--accent); }
+        input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.2); }
         
-        .checkbox-group { display: flex; flex-direction: column; gap: 6px; }
-        .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.8em; cursor: pointer; }
-        input[type="checkbox"] { transform: scale(1.1); cursor: pointer; accent-color: var(--accent); }
+        .checkbox-group { display: flex; flex-direction: column; gap: 5px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.78em; cursor: pointer; color: var(--text-dim); }
+        .checkbox-item:hover { color: var(--text-main); }
+        input[type="checkbox"] { transform: scale(1.05); cursor: pointer; accent-color: var(--accent); }
 
         .brand-filter-list {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            max-height: 180px;
+            gap: 2px;
+            max-height: 160px;
             overflow-y: auto;
             background: var(--bg-card);
-            padding: 8px;
+            padding: 6px;
             border-radius: var(--radius-md);
+            border: 1px solid var(--border);
         }
         .brand-filter-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.8em;
+            gap: 6px;
+            font-size: 0.76em;
             cursor: pointer;
             white-space: nowrap;
-            padding: 4px;
+            padding: 3px 6px;
             border-radius: var(--radius-sm);
+            color: var(--text-dim);
         }
         .brand-filter-item:hover { background: var(--bg-input); color: var(--accent); }
 
         /* Content Area */
         .content-area {
             flex-grow: 1;
-            padding: 16px;
+            padding: 12px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -146,7 +134,7 @@
 
         .container { 
             display: flex; 
-            gap: 16px; 
+            gap: 12px; 
             height: 100%;
             overflow: hidden;
         }
@@ -154,13 +142,14 @@
         .column { 
             flex: 1; 
             background: var(--bg-card); 
-            padding: 12px; 
+            padding: 10px 12px; 
             border-radius: var(--radius-lg); 
             display: flex; 
             flex-direction: column; 
             overflow: hidden; 
+            border: 1px solid var(--border);
         }
-        .column h2 { font-size: 1em; margin: 0 0 12px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; font-weight: 500;}
+        .column h2 { font-size: 0.95em; margin: 0 0 10px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; font-weight: 600;}
 
         .model-column-content {
             flex-grow: 1;
@@ -168,7 +157,7 @@
             padding-right: 4px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
 
         /* Custom scrollbar */
@@ -179,15 +168,15 @@
         .model-column-content::-webkit-scrollbar-thumb,
         .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
         .model-column-content::-webkit-scrollbar-thumb:hover,
-        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
         /* Collapsible Model Section */
         .model-section {
             display: flex;
             flex-direction: column;
-            background: rgba(0, 0, 0, 0.15);
+            background: var(--bg-section);
             border-radius: var(--radius-md);
-            padding: 8px;
+            padding: 6px 8px;
             border: 1px solid var(--border);
             transition: all 0.2s ease;
         }
@@ -198,7 +187,7 @@
             align-items: center;
             cursor: pointer;
             user-select: none;
-            padding: 6px 10px;
+            padding: 5px 8px;
             border-radius: var(--radius-sm);
             transition: background 0.15s;
         }
@@ -209,26 +198,26 @@
         .section-title {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-weight: 600;
-            font-size: 0.85em;
+            font-size: 0.82em;
             color: var(--text-main);
         }
-        .section-icon { font-size: 1.1em; }
+        .section-icon { font-size: 1em; }
         
         .section-count-badge {
-            font-size: 0.75em;
-            padding: 2px 8px;
+            font-size: 0.72em;
+            padding: 1px 7px;
             border-radius: var(--radius-pill);
             background: var(--bg-card);
             border: 1px solid var(--border);
             color: var(--accent);
             font-weight: 700;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
         }
 
         .collapse-caret {
-            font-size: 0.75em;
+            font-size: 0.7em;
             color: var(--text-dim);
             transition: transform 0.2s ease;
         }
@@ -241,98 +230,156 @@
         }
 
         .model-list { 
-            margin-top: 8px;
+            margin-top: 6px;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            gap: 6px;
             align-content: start;
         }
         
         .empty-section-message {
             grid-column: 1 / -1;
-            padding: 16px;
+            padding: 12px;
             text-align: center;
-            color: var(--text-dim);
-            font-size: 0.8em;
+            color: var(--text-muted);
+            font-size: 0.75em;
             font-style: italic;
         }
 
-        /* Model Card */
+        /* Streamlined Model Card */
         .model-item { 
-            padding: 10px; 
+            padding: 8px 10px; 
             background: var(--bg-card);
             border-radius: var(--radius-md); 
             display: flex; 
-            align-items: center; 
-            gap: 10px; 
+            align-items: flex-start; 
+            gap: 8px; 
             transition: background-color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s;
             height: fit-content;
-            border: 1px solid var(--bg-input);
-            border-left: 4px solid transparent;
+            border: 1px solid var(--border);
+            border-left: 3px solid transparent;
         }
-        .model-item:hover { background: var(--bg-input); transform: translateY(-1px); }
+        .model-item:hover { 
+            background: var(--bg-card-hover); 
+            border-color: var(--border-subtle);
+            transform: translateY(-1px); 
+        }
         
         /* Selected Card Visual Highlight */
         .model-item.selected {
-            background: rgba(208, 188, 255, 0.12) !important;
-            border-color: var(--accent) !important;
-            border-left: 4px solid var(--accent) !important;
-            box-shadow: 0 2px 8px rgba(208, 188, 255, 0.08);
+            background: rgba(167, 139, 250, 0.10) !important;
+            border-color: rgba(167, 139, 250, 0.4) !important;
+            border-left: 3px solid var(--accent) !important;
+            box-shadow: 0 0 10px rgba(167, 139, 250, 0.06);
+        }
+
+        .model-checkbox-wrap {
+            margin-top: 2px;
+            flex-shrink: 0;
         }
         
-        .model-info { flex-grow: 1; min-width: 0; }
-        .model-name { font-weight: 500; font-size: 0.9em; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .model-brand { font-size: 0.55em; background: var(--bg-body); padding: 2px 6px; border-radius: var(--radius-pill); text-transform: uppercase; color: var(--text-dim); flex-shrink: 0; border: 1px solid var(--border);}
-        .model-id { font-size: 0.65em; color: var(--text-dim); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.8; margin-top: 2px;}
-        .model-pricing { font-size: 0.75em; color: var(--success); font-family: monospace; margin-top: 4px; font-weight: 500;}
-        .model-specs { font-size: 0.7em; color: var(--text-dim); font-family: monospace; margin-top: 2px; }
+        .model-info { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         
-        .capabilities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-        .cap-tag { font-size: 0.55em; background: var(--bg-input); padding: 2px 6px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 500;}
-        .cap-tag.active { background: var(--accent); color: var(--on-accent); }
+        .model-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .model-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .model-name { 
+            font-weight: 600; 
+            font-size: 0.84em; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            color: var(--text-main);
+        }
+        .model-brand { 
+            font-size: 0.55em; 
+            background: var(--bg-body); 
+            padding: 1px 5px; 
+            border-radius: var(--radius-pill); 
+            text-transform: uppercase; 
+            color: var(--text-dim); 
+            flex-shrink: 0; 
+            border: 1px solid var(--border);
+            font-weight: 500;
+        }
+        .model-id { 
+            font-size: 0.65em; 
+            color: var(--text-muted); 
+            font-family: monospace; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            margin-top: 1px;
+        }
+        
+        .model-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 3px;
+            font-size: 0.7em;
+            font-family: monospace;
+            flex-wrap: wrap;
+        }
+        .model-pricing { color: var(--success); font-weight: 500;}
+        .model-specs { color: var(--text-dim); }
+        
+        .capabilities { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+        .cap-tag { font-size: 0.52em; background: var(--bg-input); padding: 1px 5px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 600; border: 1px solid var(--border-subtle);}
+        .cap-tag.active { background: rgba(167, 139, 250, 0.2); color: var(--accent); border-color: rgba(167, 139, 250, 0.4); }
 
         .model-tier {
-            font-size: 0.55em;
-            padding: 2px 6px;
+            font-size: 0.52em;
+            padding: 1px 5px;
             border-radius: var(--radius-pill);
             text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
             flex-shrink: 0;
         }
         .tier-frontier {
-            background: rgba(236, 72, 153, 0.15);
+            background: rgba(244, 114, 182, 0.15);
             color: #f472b6;
-            border: 1px solid rgba(236, 72, 153, 0.3);
+            border: 1px solid rgba(244, 114, 182, 0.35);
         }
         .tier-moderate {
-            background: rgba(59, 130, 246, 0.15);
+            background: rgba(96, 165, 250, 0.15);
             color: #60a5fa;
-            border: 1px solid rgba(59, 130, 246, 0.3);
+            border: 1px solid rgba(96, 165, 250, 0.35);
         }
         .tier-cheap {
-            background: rgba(16, 185, 129, 0.15);
+            background: rgba(52, 211, 153, 0.15);
             color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            border: 1px solid rgba(52, 211, 153, 0.35);
         }
 
         /* Buttons */
         button { cursor: pointer; border: none; border-radius: var(--radius-pill); transition: opacity 0.2s, background-color 0.2s, transform 0.1s; font-weight: 500;}
         button:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .btn-test { background-color: var(--bg-input); color: var(--accent); padding: 4px 10px; font-size: 0.7em; flex-shrink: 0; border-radius: var(--radius-pill); }
+        .btn-test { background-color: var(--bg-input); color: var(--accent); padding: 2px 8px; font-size: 0.68em; flex-shrink: 0; border-radius: var(--radius-pill); border: 1px solid var(--border); }
         .btn-test:hover { background-color: var(--accent); color: var(--on-accent); }
-        .btn-refresh { background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; font-size: 0.75em; }
+        .btn-refresh { background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 5px 10px; font-size: 0.72em; }
         .btn-refresh:hover { background-color: var(--bg-input); color: var(--accent); border-color: var(--accent); }
 
         /* Floating Action Buttons */
         .fab-group {
             position: fixed;
-            bottom: 24px;
-            right: 24px;
+            bottom: 20px;
+            right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             z-index: 1000;
         }
 
@@ -344,44 +391,46 @@
         }
 
         .fab-btn {
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
             color: var(--on-accent);
             border: none;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            font-size: 1.1em;
+            font-size: 1.05em;
             background-color: var(--bg-card);
+            border: 1px solid var(--border);
         }
 
-        .fab-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.4);}
-        .fab-btn.primary { background-color: var(--accent); color: var(--on-accent); width: 56px; height: 56px; font-size: 1.3em;}
+        .fab-btn:hover { transform: scale(1.06); box-shadow: 0 6px 18px rgba(0,0,0,0.6);}
+        .fab-btn.primary { background-color: var(--accent); color: var(--on-accent); width: 50px; height: 50px; font-size: 1.2em; border: none;}
         .fab-btn.secondary { background-color: var(--bg-input); color: var(--text-main); }
-        .fab-btn.info { background-color: var(--bg-body); color: var(--text-main); width: 40px; height: 40px; margin-right: 4px; font-size: 0.9em; border: 1px solid var(--border); box-shadow: none;}
+        .fab-btn.info { background-color: var(--bg-body); color: var(--text-main); width: 36px; height: 36px; margin-right: 4px; font-size: 0.85em; }
 
         .fab-label {
             position: absolute;
-            right: 64px;
-            background: var(--bg-input);
+            right: 58px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: var(--radius-sm);
-            font-size: 0.75em;
+            font-size: 0.72em;
             white-space: nowrap;
             opacity: 0;
             transition: opacity 0.2s;
             pointer-events: none;
             font-weight: 500;
         }
-        .fab-btn.primary ~ .fab-label { right: 72px; }
+        .fab-btn.primary ~ .fab-label { right: 64px; }
         .fab-container:hover .fab-label { opacity: 1; }
 
-        .count-badge { font-size: 0.7em; background: var(--bg-input); color: var(--accent); padding: 2px 8px; border-radius: var(--radius-pill); font-weight: 600;}
+        .count-badge { font-size: 0.7em; background: var(--bg-input); color: var(--accent); padding: 1px 7px; border-radius: var(--radius-pill); font-weight: 600; border: 1px solid var(--border);}
 
         /* Modal Styles */
         .modal {
@@ -392,26 +441,39 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
         }
         .modal-content {
-            background-color: var(--bg-body);
-            margin: 5% auto;
-            padding: 24px;
-            width: 600px;
+            background-color: var(--bg-card);
+            margin: 4% auto;
+            padding: 22px;
+            width: 580px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
+            border: 1px solid var(--border);
         }
-        .modal-content h2 { margin: 0; font-size: 1.2em; color: var(--text-main); font-weight: 600; }
-        .settings-grid { display: flex; flex-direction: column; gap: 12px; }
+        .modal-content h2 { margin: 0; font-size: 1.15em; color: var(--text-main); font-weight: 600; }
+        .settings-grid { display: flex; flex-direction: column; gap: 10px; }
+
+        /* Masked JSON view */
+        .masked-json {
+            -webkit-text-security: disc;
+            filter: blur(4px);
+            transition: filter 0.2s ease;
+            user-select: none;
+        }
+        .masked-json.revealed {
+            -webkit-text-security: none;
+            filter: none;
+            user-select: text;
+        }
 
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .verifying { animation: pulse 2s infinite; color: var(--warning); }
-
     </style>
 </head>
 <body>
@@ -531,17 +593,23 @@
                                          data-max-input="{{ m.max_input_tokens or 0 }}"
                                          data-max-output="{{ m.max_output_tokens or 0 }}"
                                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
-                                        <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        <div class="model-checkbox-wrap">
+                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        </div>
                                         <div class="model-info">
-                                            <div class="model-name">
-                                                <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
-                                                {{ m.name }} 
+                                            <div class="model-header-row">
+                                                <div class="model-title-wrap">
+                                                    <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                    <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
+                                                    <span class="model-brand">{{ m.brand }}</span>
+                                                </div>
+                                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
                                             </div>
-                                            <div class="model-id">{{ m.id }}</div>
-                                            <div class="model-pricing">
-                                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                                            <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
+                                            <div class="model-meta-row">
+                                                <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
+                                                <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
-                                            <div class="model-specs">In: ? / Out: ?</div>
                                             <div class="capabilities">
                                                 {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
                                                 {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
@@ -550,7 +618,6 @@
                                                 {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
                                             </div>
                                         </div>
-                                        <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -603,17 +670,23 @@
                                          data-max-input="{{ m.max_input_tokens or 0 }}"
                                          data-max-output="{{ m.max_output_tokens or 0 }}"
                                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
-                                        <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        <div class="model-checkbox-wrap">
+                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        </div>
                                         <div class="model-info">
-                                            <div class="model-name">
-                                                <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
-                                                {{ m.name }}
+                                            <div class="model-header-row">
+                                                <div class="model-title-wrap">
+                                                    <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                    <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
+                                                    <span class="model-brand">Google</span>
+                                                </div>
+                                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
                                             </div>
-                                            <div class="model-id">{{ m.id }}</div>
-                                            <div class="model-pricing">
-                                                In: ${{ "%.2f"|format(m.pricing.prompt_1m) }} / Out: ${{ "%.2f"|format(m.pricing.completion_1m) }}
+                                            <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
+                                            <div class="model-meta-row">
+                                                <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
+                                                <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
-                                            <div class="model-specs">In: ? / Out: ?</div>
                                             <div class="capabilities">
                                                 {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
                                                 {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
@@ -622,7 +695,6 @@
                                                 {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
                                             </div>
                                         </div>
-                                        <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -637,12 +709,12 @@
                         <button type="button" class="fab-btn info" onclick="scrollToTop()">🔝</button>
                     </div>
                     <div class="fab-container">
-                        <span class="fab-label">Restart Proxy</span>
-                        <button type="button" class="fab-btn secondary" onclick="restartLiteLLM()">♻️</button>
+                        <span class="fab-label">Restart Proxy (Verified)</span>
+                        <button type="button" class="fab-btn secondary" id="restartProxyFabBtn" onclick="restartLiteLLM()">♻️</button>
                     </div>
                     <div class="fab-container">
                         <span class="fab-label">Sync Config</span>
-                        <button type="submit" class="fab-btn primary">🔄</button>
+                        <button type="submit" class="fab-btn primary" id="syncConfigFabBtn">🔄</button>
                     </div>
                 </div>
             </form>
@@ -714,8 +786,11 @@
                         </div>
                     </div>
                     <div class="filter-group" style="margin-top: 10px;">
-                        <span class="filter-label">Service Account JSON</span>
-                        <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="5" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical;"></textarea>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="filter-label" style="margin-bottom: 0;">Service Account JSON</span>
+                            <button type="button" class="btn-refresh" id="toggleVxJsonBtn" onclick="toggleServiceAccountJson()" style="padding: 2px 8px; font-size: 0.7em;">👁️ Reveal JSON</button>
+                        </div>
+                        <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="5" class="masked-json" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical;"></textarea>
                     </div>
                 </section>
 
@@ -747,6 +822,18 @@
             input.type = input.type === 'password' ? 'text' : 'password';
         }
 
+        function toggleServiceAccountJson() {
+            const txt = document.getElementById('setting_VX_JSON');
+            const btn = document.getElementById('toggleVxJsonBtn');
+            if (txt.classList.contains('revealed')) {
+                txt.classList.remove('revealed');
+                btn.innerText = '👁️ Reveal JSON';
+            } else {
+                txt.classList.add('revealed');
+                btn.innerText = '🔒 Mask JSON';
+            }
+        }
+
         async function openSettings() {
             try {
                 const resp = await fetch('/api/settings');
@@ -764,6 +851,12 @@
                 document.getElementById('setting_NOTIF_TRENDING').checked = (settings.NOTIFY_ON_TRENDING || 'true').toLowerCase() === 'true';
                 document.getElementById('setting_HEALTH_INTERVAL').value = settings.HEALTH_CHECK_INTERVAL_HOURS || '24';
                 document.getElementById('setting_PROBE_MODE').value = settings.PROBE_MODE || 'catalog';
+
+                // Reset JSON mask state
+                const txt = document.getElementById('setting_VX_JSON');
+                const btn = document.getElementById('toggleVxJsonBtn');
+                txt.classList.remove('revealed');
+                btn.innerText = '👁️ Reveal JSON';
 
                 document.getElementById('settingsModal').style.display = 'block';
             } catch (e) { alert('Failed to load settings'); }
@@ -924,8 +1017,8 @@
                     const outLimit = parseInt(item.dataset.maxOutput);
                     let specsText = '';
                     if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
-                    if (outLimit) specsText += ` / Out: ${formatTokens(outLimit)}`;
-                    specsDiv.innerText = specsText || 'In: ? / Out: ?';
+                    if (outLimit) specsText += ` · Out: ${formatTokens(outLimit)}`;
+                    specsDiv.innerText = specsText || 'In: ? · Out: ?';
                 }
 
                 let visible = true;
@@ -1082,9 +1175,9 @@
                             
                             const div = document.createElement('div');
                             div.className = 'model-item selected orphaned-model';
-                            div.style.backgroundColor = 'rgba(255, 0, 0, 0.15)';
-                            div.style.borderColor = '#ff4444';
-                            div.style.borderLeft = '4px solid #ff4444';
+                            div.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+                            div.style.borderColor = '#f87171';
+                            div.style.borderLeft = '3px solid #f87171';
                             div.dataset.name = id;
                             div.dataset.id = id;
                             div.dataset.brand = isVertex ? 'google' : 'other';
@@ -1092,11 +1185,20 @@
                             div.dataset.popularity = '-1';
                             
                             div.innerHTML = `
-                                <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
+                                <div class="model-checkbox-wrap">
+                                    <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
+                                </div>
                                 <div class="model-info">
-                                    <div class="model-name" style="color: #ff4444; font-weight: bold;">${id} (UNAVAILABLE)</div>
-                                    <div class="model-id">This model is in your config but is no longer provided by the API. Uncheck to remove.</div>
-                                    <div class="model-specs">In: ? / Out: ?</div>
+                                    <div class="model-header-row">
+                                        <div class="model-title-wrap">
+                                            <span class="model-tier tier-frontier" style="background: rgba(248, 113, 113, 0.2); color: #f87171; border-color: #f87171;">UNAVAILABLE</span>
+                                            <span class="model-name" style="color: #f87171; font-weight: bold;" title="${id}">${id}</span>
+                                        </div>
+                                    </div>
+                                    <div class="model-id">Model in config but no longer returned by provider. Uncheck to remove.</div>
+                                    <div class="model-meta-row">
+                                        <span class="model-specs">In: ? · Out: ?</span>
+                                    </div>
                                 </div>
                             `;
                             targetList.prepend(div);
@@ -1146,19 +1248,53 @@
         }
 
         async function restartLiteLLM() {
-            if (!confirm('Restart Proxy?')) return;
+            if (!confirm('Restart LiteLLM container and verify health?')) return;
+            const fabBtn = document.getElementById('restartProxyFabBtn');
+            const originalText = fabBtn.innerText;
+            fabBtn.innerText = '⏳';
+            fabBtn.disabled = true;
+            
             try {
                 const resp = await fetch('/restart-litellm', { method: 'POST' });
-                if (resp.ok) alert('Restarting...');
-            } catch (e) { alert('Error'); }
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    alert('✅ ' + (res.message || 'LiteLLM restarted and health verified (HTTP 200 OK)!'));
+                } else if (res.reverted) {
+                    alert('⚠️ ' + res.message);
+                } else {
+                    alert('❌ Restart error: ' + (res.message || JSON.stringify(res)));
+                }
+            } catch (e) { 
+                alert('Error restarting LiteLLM: ' + e); 
+            } finally {
+                fabBtn.innerText = originalText;
+                fabBtn.disabled = false;
+            }
         }
 
         document.getElementById('syncForm').onsubmit = async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const resp = await fetch('/sync', { method: 'POST', body: formData });
-            const result = await resp.json();
-            if (result.status === 'success') alert(`Updated ${result.updated_models} models!`);
+            const fabBtn = document.getElementById('syncConfigFabBtn');
+            const originalText = fabBtn.innerText;
+            fabBtn.innerText = '⏳';
+            fabBtn.disabled = true;
+
+            try {
+                const formData = new FormData(e.target);
+                const resp = await fetch('/sync', { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    const wildcardsInfo = result.wildcards ? ` (${result.wildcards} wildcards injected)` : '';
+                    alert(`✅ Saved & synced ${result.updated_models} models${wildcardsInfo} into LiteLLM config and OpenCode config!`);
+                } else {
+                    alert('❌ Sync failed: ' + (result.message || JSON.stringify(result)));
+                }
+            } catch (e) {
+                alert('Error syncing configuration: ' + e);
+            } finally {
+                fabBtn.innerText = originalText;
+                fabBtn.disabled = false;
+            }
         };
     </script>
 </body>
