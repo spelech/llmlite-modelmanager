@@ -12,7 +12,8 @@ from app.config import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_VERTEX_CREDS,
     app_state,
-    get_app_setting
+    get_app_setting,
+    get_librechat_config_paths
 )
 from app.notifications import send_notification
 
@@ -61,10 +62,93 @@ def export_opencode_config(models: list, target_path: str = "/app/opencode_confi
     with open(target_path, "w") as f:
         json.dump(content, f, indent=2)
 
+def export_librechat_config(models: list, target_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Sync active LiteLLM models and token limits into librechat.yaml configurations."""
+    if target_paths is None:
+        target_paths = get_librechat_config_paths()
+    elif isinstance(target_paths, str):
+        target_paths = [target_paths]
+
+    synced_targets = []
+    skipped_targets = []
+
+    for path in target_paths:
+        if not os.path.exists(path):
+            skipped_targets.append({"path": path, "reason": "file_not_found"})
+            continue
+
+        try:
+            with open(path, "r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"Error reading librechat config at {path}: {e}")
+            skipped_targets.append({"path": path, "reason": f"read_error: {e}"})
+            continue
+
+        endpoints = config.setdefault("endpoints", {})
+        custom_list = endpoints.setdefault("custom", [])
+
+        litellm_ep = next((ep for ep in custom_list if ep.get("name") == "LiteLLM"), None)
+        if not litellm_ep:
+            skipped_targets.append({"path": path, "reason": "litellm_endpoint_not_found"})
+            continue
+
+        token_config = litellm_ep.setdefault("tokenConfig", {})
+        model_list = []
+
+        for m in models:
+            m_name = m.get("model_name")
+            if not m_name or m_name.endswith("*"):
+                continue
+
+            info = m.get("model_info", {})
+            ctx_limit = info.get("max_input_tokens") or m.get("max_input_tokens") or 128000
+
+            pricing = m.get("pricing", {})
+            if "prompt_1m" in pricing:
+                p_prompt = float(pricing.get("prompt_1m", 0.0))
+                p_completion = float(pricing.get("completion_1m", 0.0))
+            else:
+                p_prompt_raw = info.get("input_cost_per_token") or info.get("input_cost_per_character") or pricing.get("prompt", 0.0)
+                p_completion_raw = info.get("output_cost_per_token") or info.get("output_cost_per_character") or pricing.get("completion", 0.0)
+                try:
+                    p_prompt = float(p_prompt_raw) * 1_000_000
+                    p_completion = float(p_completion_raw) * 1_000_000
+                except (ValueError, TypeError):
+                    p_prompt = 0.0
+                    p_completion = 0.0
+
+            model_list.append(m_name)
+            token_config[m_name] = {
+                "prompt": round(p_prompt, 4),
+                "completion": round(p_completion, 4),
+                "context": int(ctx_limit)
+            }
+
+        if "models" not in litellm_ep or not isinstance(litellm_ep["models"], dict):
+            litellm_ep["models"] = {"fetch": True}
+
+        litellm_ep["models"]["default"] = model_list
+        litellm_ep["tokenConfig"] = token_config
+
+        try:
+            with open(path, "w") as f:
+                yaml.safe_dump(config, f, sort_keys=False, default_flow_style=False)
+            synced_targets.append({"path": path, "models_count": len(model_list)})
+        except Exception as e:
+            print(f"Error writing librechat config to {path}: {e}")
+            skipped_targets.append({"path": path, "reason": f"write_error: {e}"})
+
+    return {
+        "status": "success" if synced_targets else "partial_or_skipped",
+        "synced": synced_targets,
+        "skipped": skipped_targets
+    }
+
 async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
     """
-    Core logic to sync selected models into LiteLLM config and OpenCode config with
-    automatic duplicate collision prevention and safety backup.
+    Core logic to sync selected models into LiteLLM config, OpenCode config, and LibreChat config
+    with automatic duplicate collision prevention and safety backup.
     """
     all_models = app_state.get("or_models", []) + app_state.get("vx_models", [])
     model_map = {m["id"]: m for m in all_models}
@@ -135,7 +219,12 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
         yaml.safe_dump(config, f, sort_keys=False)
         
     export_opencode_config(config["model_list"])
-    return {"status": "success", "updated_models": len(new_model_list)}
+    librechat_res = export_librechat_config(config["model_list"])
+    return {
+        "status": "success",
+        "updated_models": len(new_model_list),
+        "librechat_sync": librechat_res
+    }
 
 async def verify_litellm_healthy(timeout: float = 45.0) -> bool:
     """Check if LiteLLM is responding on /health."""
