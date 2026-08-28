@@ -144,12 +144,31 @@ async def check_model_health(send_alerts: bool = True, mode: str = "catalog") ->
 @mcp.tool
 async def sync_models(model_ids: List[str]) -> Dict[str, any]:
     """
-    Set the active models in LiteLLM configuration and export to OpenCode configuration.
+    Set the active models in LiteLLM configuration and export to OpenCode and LibreChat configurations.
     
     :param model_ids: List of model IDs to enable (e.g. ['openrouter/deepseek/deepseek-chat', 'vertex_ai/gemini-2.5-flash']).
     """
     from main import sync_models_internal
     return await sync_models_internal(model_ids)
+
+@mcp.tool
+async def sync_librechat() -> Dict[str, any]:
+    """
+    Export and sync the active LiteLLM models and true token limits into all configured LibreChat yaml files.
+    """
+    from app.sync import export_librechat_config
+    settings = await get_all_settings()
+    config_path = settings.get("LITELLM_CONFIG", os.environ.get("LITELLM_CONFIG", "/app/config/config.yaml"))
+    if not os.path.exists(config_path):
+        return {"status": "error", "message": "LiteLLM configuration file not found."}
+    
+    try:
+        with open(config_path, "r") as f:
+            cfg = yaml.safe_load(f) or {}
+        models = cfg.get("model_list", [])
+        return export_librechat_config(models)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @mcp.tool
 async def add_model(model_id: str) -> Dict[str, any]:
