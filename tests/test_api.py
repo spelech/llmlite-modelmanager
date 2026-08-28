@@ -127,3 +127,11 @@ def test_restart_litellm_failure_and_auto_revert():
         assert response.json()["reverted"] is True
         mock_copy.assert_called_once()
         assert mock_container.restart.call_count == 2
+
+@pytest.mark.asyncio
+async def test_verify_litellm_healthy_direct_execution():
+    from app.sync import verify_litellm_healthy
+    with patch("httpx.AsyncClient.get", side_effect=Exception("Connection refused")):
+        healthy = await verify_litellm_healthy(timeout=0.1)
+        assert healthy is False
+
