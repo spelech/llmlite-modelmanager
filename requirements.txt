@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+jinja2
+requests
+pyyaml
+google-auth
+google-cloud-aiplatform>=1.44.0
+google-genai
+litellm
+python-multipart
+pytest
+httpx
+docker
+sqlalchemy[asyncio]
+aiosqlite
+cryptography
+fastmcp>=3.0.0

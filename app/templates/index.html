@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiteLLM Model Manager</title>
+    <style>
+        :root {
+            /* Autumn Dark Theme (Default) */
+            --bg-body: #140f0b;
+            --bg-card: #1f1812;
+            --bg-card-hover: #2a2018;
+            --bg-input: #2d2219;
+            --bg-section: #18120d;
+            --text-main: #fef3c7;
+            --text-dim: #d5c4b1;
+            --text-muted: #9c8a77;
+            --accent: #f97316;
+            --accent-hover: #fb923c;
+            --accent-glow: rgba(249, 115, 22, 0.2);
+            --on-accent: #ffffff;
+            --border: #3d2c1e;
+            --border-subtle: rgba(249, 115, 22, 0.12);
+            --success: #a3e635;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-pill: 50px;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                /* Autumn Light Theme */
+                --bg-body: #faf5ee;
+                --bg-card: #ffffff;
+                --bg-card-hover: #f7efe4;
+                --bg-input: #f0e3d3;
+                --bg-section: #f5eae0;
+                --text-main: #2b1c10;
+                --text-dim: #6d5b4d;
+                --text-muted: #958373;
+                --accent: #ea580c;
+                --accent-hover: #c2410c;
+                --accent-glow: rgba(234, 88, 12, 0.15);
+                --on-accent: #ffffff;
+                --border: #e3d3c2;
+                --border-subtle: rgba(234, 88, 12, 0.12);
+                --success: #15803d;
+                --warning: #b45309;
+                --danger: #b91c1c;
+            }
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            line-height: 1.45; 
+            color: var(--text-main); 
+            background-color: var(--bg-body);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px 18px; 
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border); 
+            flex-shrink: 0;
+            z-index: 100;
+        }
+        header h1 { margin: 0; font-size: 1.2em; color: var(--accent); font-weight: 700; letter-spacing: -0.3px;}
+        .header-actions { display: flex; align-items: center; gap: 10px; margin: 0; }
+        .header-version { font-size: 0.78em; color: var(--text-dim); }
+
+        .main-layout {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: var(--bg-body);
+            padding: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border-right: 1px solid var(--border);
+        }
+        .sidebar h2 { font-size: 0.85em; margin: 0; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px; }
+
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-label { font-size: 0.72em; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; }
+        
+        input[type="text"], input[type="number"], input[type="password"], select { 
+            background: var(--bg-input); 
+            border: 1px solid var(--border); 
+            color: var(--text-main); 
+            padding: 8px 12px; 
+            border-radius: var(--radius-sm); 
+            font-size: 0.86em;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+        
+        .checkbox-group { display: flex; flex-direction: column; gap: 6px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.84em; cursor: pointer; color: var(--text-dim); font-weight: 500;}
+        .checkbox-item:hover { color: var(--text-main); }
+        input[type="checkbox"] { transform: scale(1.1); cursor: pointer; accent-color: var(--accent); }
+
+        .brand-filter-list {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            max-height: 170px;
+            overflow-y: auto;
+            background: var(--bg-card);
+            padding: 8px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+        .brand-filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82em;
+            cursor: pointer;
+            white-space: nowrap;
+            padding: 4px 6px;
+            border-radius: var(--radius-sm);
+            color: var(--text-dim);
+        }
+        .brand-filter-item:hover { background: var(--bg-input); color: var(--accent); }
+
+        /* Content Area */
+        .content-area {
+            flex-grow: 1;
+            padding: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-body);
+        }
+
+        .container { 
+            display: flex; 
+            gap: 14px; 
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .column { 
+            flex: 1; 
+            background: var(--bg-card); 
+            padding: 12px 14px; 
+            border-radius: var(--radius-lg); 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            border: 1px solid var(--border);
+        }
+        .column h2 { font-size: 1.05em; margin: 0 0 12px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; font-weight: 700;}
+
+        .model-column-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Custom scrollbar */
+        .model-column-content::-webkit-scrollbar,
+        .model-list::-webkit-scrollbar { width: 5px; }
+        .model-column-content::-webkit-scrollbar-track,
+        .model-list::-webkit-scrollbar-track { background: transparent; }
+        .model-column-content::-webkit-scrollbar-thumb,
+        .model-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .model-column-content::-webkit-scrollbar-thumb:hover,
+        .model-list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* Collapsible Model Section */
+        .model-section {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-section);
+            border-radius: var(--radius-md);
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            transition: background 0.15s;
+        }
+        .section-header:hover {
+            background: var(--bg-input);
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 0.88em;
+            color: var(--text-main);
+        }
+        .section-icon { font-size: 1.1em; }
+        
+        .section-count-badge {
+            font-size: 0.76em;
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .collapse-caret {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            transition: transform 0.2s ease;
+        }
+        
+        .model-section.collapsed .collapse-caret {
+            transform: rotate(-90deg);
+        }
+        .model-section.collapsed .section-content {
+            display: none !important;
+        }
+
+        .model-list { 
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+            align-content: start;
+        }
+        
+        .empty-section-message {
+            grid-column: 1 / -1;
+            padding: 14px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.82em;
+            font-style: italic;
+        }
+
+        /* Streamlined & Highly Readable Model Card */
+        .model-item { 
+            padding: 10px 12px; 
+            background: var(--bg-card);
+            border-radius: var(--radius-md); 
+            display: flex; 
+            align-items: flex-start; 
+            gap: 10px; 
+            transition: background-color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s;
+            height: fit-content;
+            border: 1px solid var(--border);
+            border-left: 4px solid transparent;
+        }
+        .model-item:hover { 
+            background: var(--bg-card-hover); 
+            border-color: var(--accent-hover);
+            transform: translateY(-1px); 
+        }
+        
+        /* Selected Card Visual Highlight */
+        .model-item.selected {
+            background: rgba(249, 115, 22, 0.12) !important;
+            border-color: rgba(249, 115, 22, 0.45) !important;
+            border-left: 4px solid var(--accent) !important;
+            box-shadow: 0 2px 10px var(--accent-glow);
+        }
+
+        @media (prefers-color-scheme: light) {
+            .model-item.selected {
+                background: rgba(234, 88, 12, 0.08) !important;
+                border-color: rgba(234, 88, 12, 0.45) !important;
+                border-left: 4px solid var(--accent) !important;
+            }
+        }
+
+        .model-checkbox-wrap {
+            margin-top: 3px;
+            flex-shrink: 0;
+        }
+        
+        .model-info { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        
+        .model-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .model-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .model-name { 
+            font-weight: 600; 
+            font-size: 0.94em; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            color: var(--text-main);
+            letter-spacing: -0.2px;
+        }
+        .model-brand { 
+            font-size: 0.62em; 
+            background: var(--bg-body); 
+            padding: 2px 6px; 
+            border-radius: var(--radius-pill); 
+            text-transform: uppercase; 
+            color: var(--text-dim); 
+            flex-shrink: 0; 
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+        .model-id { 
+            font-size: 0.76em; 
+            color: var(--text-muted); 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            margin-top: 1px;
+            font-weight: 400;
+        }
+        
+        .model-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 4px;
+            font-size: 0.82em;
+            flex-wrap: wrap;
+        }
+        .model-pricing { color: var(--success); font-weight: 600;}
+        .model-specs { color: var(--text-dim); font-weight: 500;}
+        
+        .capabilities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+        .cap-tag { font-size: 0.62em; background: var(--bg-input); padding: 2px 7px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 600; border: 1px solid var(--border-subtle);}
+        .cap-tag.active { background: rgba(249, 115, 22, 0.18); color: var(--accent); border-color: rgba(249, 115, 22, 0.4); }
+
+        .model-tier {
+            font-size: 0.62em;
+            padding: 2px 7px;
+            border-radius: var(--radius-pill);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            flex-shrink: 0;
+        }
+        .tier-frontier {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+        }
+        .tier-moderate {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+        .tier-cheap {
+            background: rgba(163, 230, 53, 0.15);
+            color: #a3e635;
+            border: 1px solid rgba(163, 230, 53, 0.35);
+        }
+
+        @media (prefers-color-scheme: light) {
+            .tier-frontier { color: #b91c1c; border-color: rgba(185, 28, 28, 0.35); }
+            .tier-moderate { color: #b45309; border-color: rgba(180, 83, 9, 0.35); }
+            .tier-cheap { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
+            .cap-tag.active { background: rgba(234, 88, 12, 0.12); color: var(--accent); border-color: rgba(234, 88, 12, 0.35); }
+        }
+
+        /* Buttons */
+        button { cursor: pointer; border: none; border-radius: var(--radius-pill); transition: opacity 0.2s, background-color 0.2s, transform 0.1s; font-weight: 600;}
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-test { background-color: var(--bg-input); color: var(--accent); padding: 3px 10px; font-size: 0.74em; flex-shrink: 0; border-radius: var(--radius-pill); border: 1px solid var(--border); font-weight: 600;}
+        .btn-test:hover { background-color: var(--accent); color: var(--on-accent); }
+        .btn-refresh { background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; font-size: 0.78em; }
+        .btn-refresh:hover { background-color: var(--bg-input); color: var(--accent); border-color: var(--accent); }
+
+        /* Floating Action Buttons */
+        .fab-group {
+            position: fixed;
+            bottom: 22px;
+            right: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .fab-container {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+        }
+
+        .fab-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+            color: var(--on-accent);
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-size: 1.1em;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .fab-btn:hover { transform: scale(1.06); box-shadow: 0 6px 18px rgba(0,0,0,0.5);}
+        .fab-btn.primary { background-color: var(--accent); color: var(--on-accent); width: 52px; height: 52px; font-size: 1.25em; border: none;}
+        .fab-btn.secondary { background-color: var(--bg-input); color: var(--text-main); }
+        .fab-btn.info { background-color: var(--bg-body); color: var(--text-main); width: 38px; height: 38px; margin-right: 4px; font-size: 0.88em; }
+
+        .fab-label {
+            position: absolute;
+            right: 60px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.76em;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            font-weight: 600;
+        }
+        .fab-btn.primary ~ .fab-label { right: 66px; }
+        .fab-container:hover .fab-label { opacity: 1; }
+
+        .count-badge { font-size: 0.7em; background: var(--bg-input); color: var(--accent); padding: 1px 7px; border-radius: var(--radius-pill); font-weight: 600; border: 1px solid var(--border);}
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background-color: var(--bg-card);
+            margin: 4% auto;
+            padding: 22px;
+            width: 580px;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            border: 1px solid var(--border);
+        }
+        .modal-content h2 { margin: 0; font-size: 1.15em; color: var(--text-main); font-weight: 600; }
+        .settings-grid { display: flex; flex-direction: column; gap: 10px; }
+
+        /* Masked JSON view */
+        .masked-json {
+            -webkit-text-security: disc;
+            filter: blur(4px);
+            transition: filter 0.2s ease;
+            user-select: none;
+        }
+        .masked-json.revealed {
+            -webkit-text-security: none;
+            filter: none;
+            user-select: text;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .verifying { animation: pulse 2s infinite; color: var(--warning); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>LiteLLM Model Manager</h1>
+        <div class="header-actions">
+            <button type="button" class="btn-refresh" onclick="exportSelections()">📤 Export Selection</button>
+            <button type="button" class="btn-refresh" onclick="openImportModal()">📥 Import Selection</button>
+            <button type="button" class="btn-refresh" onclick="forceRefresh()">Force Refresh Metadata</button>
+            <button type="button" class="btn-refresh" onclick="openSettings()">Settings</button>
+            <div class="header-version">v{{ version }} | {{ build_time }}</div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <h2>Filters</h2>
+            
+            <div class="filter-group">
+                <span class="filter-label">Sort By</span>
+                <select id="sortOrder" onchange="applyAllFilters()" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
+                    <option value="popularity">Popularity (Most Popular)</option>
+                    <option value="priceAsc">Price (Low to High)</option>
+                    <option value="priceDesc">Price (High to Low)</option>
+                    <option value="name">Name (A-Z)</option>
+                    <option value="brand">Brand (A-Z)</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <span class="filter-label">Wildcard Search</span>
+                <input type="text" id="globalSearch" placeholder="e.g. gemini*flash" onkeyup="applyAllFilters()">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Brands</span>
+                <div id="brandFilterList" class="brand-filter-list">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Max In Price (1M)</span>
+                <input type="number" id="maxInPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Max Out Price (1M)</span>
+                <input type="number" id="maxOutPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Model Tier</span>
+                <div class="checkbox-group">
+                    <label class="checkbox-item"><input type="checkbox" id="tierFrontier" value="frontier" onchange="applyAllFilters()"> 🔥 Frontier</label>
+                    <label class="checkbox-item"><input type="checkbox" id="tierModerate" value="moderate" onchange="applyAllFilters()"> ⚡ Moderate</label>
+                    <label class="checkbox-item"><input type="checkbox" id="tierCheap" value="cheap" onchange="applyAllFilters()"> 💡 Cheap</label>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Capabilities</span>
+                <div class="checkbox-group">
+                    <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vision In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vision Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Audio In</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Audio Out</label>
+                    <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Function</label>
+                    <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <form action="/sync" method="post" id="syncForm" style="height: 100%; display: flex; flex-direction: column;">
+                <div class="container">
+                    <div class="column">
+                        <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
+                        <div id="orList" class="model-column-content">
+                            <!-- Selected Section -->
+                            <div class="model-section" id="orSelectedSection">
+                                <div class="section-header" onclick="toggleSection('orSelectedSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">⭐</span>
+                                        <span>Selected Models</span>
+                                        <span class="section-count-badge" id="orSelectedCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="orSelectedList" class="model-list section-content"></div>
+                            </div>
+
+                            <!-- Available Section -->
+                            <div class="model-section" id="orAvailableSection">
+                                <div class="section-header" onclick="toggleSection('orAvailableSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">📋</span>
+                                        <span>Available Models</span>
+                                        <span class="section-count-badge" id="orAvailableCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="orAvailableList" class="model-list section-content">
+                                    {% for m in or_models %}
+                                    <div class="model-item" 
+                                         data-name="{{ m.name | lower }}" 
+                                         data-id="{{ m.id | lower }}"
+                                         data-brand="{{ m.brand }}"
+                                         data-tier="{{ m.tier | default('moderate') }}"
+                                         data-popularity="{{ m.popularity | default(9999) }}"
+                                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                                         data-in-price="{{ m.pricing.prompt_1m }}"
+                                         data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                                         data-max-output="{{ m.max_output_tokens or 0 }}"
+                                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                                        <div class="model-checkbox-wrap">
+                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        </div>
+                                        <div class="model-info">
+                                            <div class="model-header-row">
+                                                <div class="model-title-wrap">
+                                                    <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                    <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
+                                                    <span class="model-brand">{{ m.brand }}</span>
+                                                </div>
+                                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                            </div>
+                                            <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
+                                            <div class="model-meta-row">
+                                                <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
+                                                <span class="model-specs">In: ? · Out: ?</span>
+                                            </div>
+                                            <div class="capabilities">
+                                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                                {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                                {% if m.capabilities.video_in %}<span class="cap-tag active">Video In</span>{% endif %}
+                                                {% if m.capabilities.pdf_in %}<span class="cap-tag active">PDF</span>{% endif %}
+                                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="column">
+                        <h2>Vertex AI <span class="count-badge" id="vxCount">0</span></h2>
+                        <div id="vxList" class="model-column-content">
+                            <!-- Selected Section -->
+                            <div class="model-section" id="vxSelectedSection">
+                                <div class="section-header" onclick="toggleSection('vxSelectedSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">⭐</span>
+                                        <span>Selected Models</span>
+                                        <span class="section-count-badge" id="vxSelectedCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="vxSelectedList" class="model-list section-content"></div>
+                            </div>
+
+                            <!-- Available Section -->
+                            <div class="model-section" id="vxAvailableSection">
+                                <div class="section-header" onclick="toggleSection('vxAvailableSection')">
+                                    <div class="section-title">
+                                        <span class="section-icon">📋</span>
+                                        <span>Available Models</span>
+                                        <span class="section-count-badge" id="vxAvailableCount">0</span>
+                                    </div>
+                                    <span class="collapse-caret">▼</span>
+                                </div>
+                                <div id="vxAvailableList" class="model-list section-content">
+                                    {% for m in vx_models %}
+                                    <div class="model-item" 
+                                         data-name="{{ m.name | lower }}" 
+                                         data-id="{{ m.id | lower }}"
+                                         data-brand="google"
+                                         data-tier="{{ m.tier | default('moderate') }}"
+                                         data-popularity="{{ m.popularity | default(9999) }}"
+                                         data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
+                                         data-in-price="{{ m.pricing.prompt_1m }}"
+                                         data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+                                         data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+                                         data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+                                         data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+                                         data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+                                         data-max-input="{{ m.max_input_tokens or 0 }}"
+                                         data-max-output="{{ m.max_output_tokens or 0 }}"
+                                         id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
+                                        <div class="model-checkbox-wrap">
+                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                        </div>
+                                        <div class="model-info">
+                                            <div class="model-header-row">
+                                                <div class="model-title-wrap">
+                                                    <span class="model-tier tier-{{ m.tier | default('moderate') }}">{{ m.tier | default('moderate') }}</span>
+                                                    <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
+                                                    <span class="model-brand">Google</span>
+                                                </div>
+                                                <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+                                            </div>
+                                            <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
+                                            <div class="model-meta-row">
+                                                <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
+                                                <span class="model-specs">In: ? · Out: ?</span>
+                                            </div>
+                                            <div class="capabilities">
+                                                {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+                                                {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+                                                {% if m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+                                                {% if m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+                                                {% if m.capabilities.video_in %}<span class="cap-tag active">Video In</span>{% endif %}
+                                                {% if m.capabilities.pdf_in %}<span class="cap-tag active">PDF</span>{% endif %}
+                                                {% if m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fab-group">
+                    <div class="fab-container">
+                        <span class="fab-label">Back to Top</span>
+                        <button type="button" class="fab-btn info" onclick="scrollToTop()">🔝</button>
+                    </div>
+                    <div class="fab-container">
+                        <span class="fab-label">Restart Proxy (Verified)</span>
+                        <button type="button" class="fab-btn secondary" id="restartProxyFabBtn" onclick="restartLiteLLM()">♻️</button>
+                    </div>
+                    <div class="fab-container">
+                        <span class="fab-label">Sync Config</span>
+                        <button type="submit" class="fab-btn primary" id="syncConfigFabBtn">🔄</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
+            <h2>Manager Configuration</h2>
+            <form id="settingsForm" class="settings-grid">
+                <section>
+                    <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">General Settings</h3>
+                    <div class="filter-group">
+                        <span class="filter-label">LiteLLM Config Path</span>
+                        <input type="text" name="LITELLM_CONFIG" id="setting_CONFIG_PATH" placeholder="/app/config/config.yaml">
+                    </div>
+                </section>
+
+                <section style="margin-top: 15px;">
+                    <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Notifications & Alerts (Apprise / Ntfy)</h3>
+                    <div class="filter-group">
+                        <span class="filter-label">Apprise / Ntfy URL</span>
+                        <input type="text" name="APPRISE_URL" id="setting_APPRISE_URL" placeholder="http://apprise:8000/notify/system or https://ntfy.sh/topic">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <label class="checkbox-item"><input type="checkbox" name="NOTIFICATION_ENABLED" id="setting_NOTIF_ENABLED" value="true"> Enable Alerts</label>
+                        <label class="checkbox-item"><input type="checkbox" name="NOTIFY_ON_UNAVAILABLE" id="setting_NOTIF_UNAVAIL" value="true"> Alert Outages</label>
+                        <label class="checkbox-item"><input type="checkbox" name="NOTIFY_ON_TRENDING" id="setting_NOTIF_TRENDING" value="true"> Alert New Trending</label>
+                        <div class="filter-group" style="margin-top: -5px;">
+                            <span class="filter-label">Health Check (Hours)</span>
+                            <input type="number" name="HEALTH_CHECK_INTERVAL_HOURS" id="setting_HEALTH_INTERVAL" step="1" min="1" max="72" placeholder="24">
+                        </div>
+                    </div>
+                    <div class="filter-group" style="margin-top: 10px;">
+                        <span class="filter-label">Probe Mode</span>
+                        <select name="PROBE_MODE" id="setting_PROBE_MODE" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
+                            <option value="catalog">Catalog Check Only (0 Tokens - Free & Safe)</option>
+                            <option value="live">Live Generation Ping (1 Token/Day)</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 10px;">
+                        <button type="button" class="btn-refresh" onclick="testNotification()">🔔 Test Notification</button>
+                        <button type="button" class="btn-refresh" onclick="triggerHealthCheck()">🩺 Check Health Now (0 Tokens)</button>
+                    </div>
+                </section>
+
+                <section style="margin-top: 15px;">
+                    <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">OpenRouter</h3>
+                    <div class="filter-group">
+                        <span class="filter-label">API Key</span>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="password" name="OPENROUTER_API_KEY" id="setting_OR_KEY" placeholder="sk-or-v1-..." style="flex-grow: 1;">
+                            <button type="button" class="btn-refresh" onclick="togglePassword('setting_OR_KEY')">👁️</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section style="margin-top: 15px;">
+                    <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Vertex AI</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="filter-group">
+                            <span class="filter-label">Project ID</span>
+                            <input type="text" name="VERTEX_PROJECT" id="setting_VX_PROJ" placeholder="your-project-id">
+                        </div>
+                        <div class="filter-group">
+                            <span class="filter-label">Location</span>
+                            <input type="text" name="VERTEX_LOCATION" id="setting_VX_LOC" placeholder="global">
+                        </div>
+                    </div>
+                    <div class="filter-group" style="margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="filter-label" style="margin-bottom: 0;">Service Account JSON</span>
+                            <button type="button" class="btn-refresh" id="toggleVxJsonBtn" onclick="toggleServiceAccountJson()" style="padding: 2px 8px; font-size: 0.7em;">👁️ Reveal JSON</button>
+                        </div>
+                        <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="5" class="masked-json" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical;"></textarea>
+                    </div>
+                </section>
+
+                <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end;">
+                    <button type="button" class="btn-refresh" onclick="closeSettings()">Cancel</button>
+                    <button type="submit" class="btn-sync" style="padding: 10px 25px; background: var(--accent); color: var(--on-accent); border-radius: 4px; font-weight: bold;">Save & Refresh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="importModal" class="modal" style="display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);">
+        <div style="background: var(--bg-card); margin: 6% auto; padding: 24px; border-radius: var(--radius-lg); width: 560px; max-width: 90%; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h2 style="margin: 0; font-size: 1.15em; color: var(--accent); font-weight: 700;">📥 Import Model Selection</h2>
+                <button type="button" onclick="closeImportModal()" style="background: transparent; color: var(--text-dim); font-size: 1.3em; cursor: pointer; border: none;">&times;</button>
+            </div>
+            <p style="font-size: 0.82em; color: var(--text-dim); margin-top: 0;">Upload an exported selection JSON file or paste model IDs / JSON array below to restore your selections.</p>
+            
+            <div style="margin-bottom: 14px;">
+                <input type="file" id="importFileInput" accept=".json" onchange="handleImportFile(event)" style="font-size: 0.82em; color: var(--text-main); width: 100%;">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Or Paste Model IDs / JSON</span>
+                <textarea id="importTextarea" rows="8" placeholder='["openrouter/anthropic/claude-3.7-sonnet", "vertex_ai/gemini-2.5-flash"]' style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); font-size: 0.82em; width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+            </div>
+
+            <div style="margin-top: 18px; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-refresh" onclick="closeImportModal()">Cancel</button>
+                <button type="button" class="btn-sync" onclick="applyImportedSelection()" style="padding: 8px 20px; background: var(--accent); color: var(--on-accent); border-radius: var(--radius-pill); font-weight: 700;">Apply Selection</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function exportSelections() {
+            const selectedCheckboxes = document.querySelectorAll('input[name="models"]:checked');
+            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                alert('No models currently selected to export.');
+                return;
+            }
+            
+            const exportData = {
+                app: "LiteLLM Model Manager",
+                version: "{{ version }}",
+                exported_at: new Date().toISOString(),
+                count: selectedIds.length,
+                selected_models: selectedIds
+            };
+            
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `litellm_selected_models_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function openImportModal() {
+            document.getElementById('importTextarea').value = '';
+            document.getElementById('importFileInput').value = '';
+            document.getElementById('importModal').style.display = 'block';
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none';
+        }
+
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('importTextarea').value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        function applyImportedSelection() {
+            const raw = document.getElementById('importTextarea').value.trim();
+            if (!raw) {
+                alert('Please select a file or paste JSON / model IDs.');
+                return;
+            }
+
+            let ids = [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    ids = parsed;
+                } else if (parsed && Array.isArray(parsed.selected_models)) {
+                    ids = parsed.selected_models;
+                } else if (parsed && Array.isArray(parsed.models)) {
+                    ids = parsed.models;
+                }
+            } catch (e) {
+                ids = raw.split(/[\n,]+/).map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+            }
+
+            if (!ids || ids.length === 0) {
+                alert('Could not parse any model IDs from input.');
+                return;
+            }
+
+            // Uncheck all current checkboxes first
+            document.querySelectorAll('input[name="models"]').forEach(cb => {
+                cb.checked = false;
+                const item = cb.closest('.model-item');
+                if (item) {
+                    item.classList.remove('selected');
+                    const isVertex = (item.dataset.id || '').startsWith('vertex_ai/');
+                    const availList = document.getElementById(isVertex ? 'vxAvailableList' : 'orAvailableList');
+                    if (availList && item.parentElement !== availList) {
+                        availList.appendChild(item);
+                    }
+                }
+            });
+
+            // Now check and move the imported models
+            const orSelectedList = document.getElementById('orSelectedList');
+            const vxSelectedList = document.getElementById('vxSelectedList');
+            let matchedCount = 0;
+
+            ids.forEach(id => {
+                const cb = document.querySelector(`input[name="models"][value="${id}"]`);
+                if (cb) {
+                    cb.checked = true;
+                    matchedCount++;
+                    const item = cb.closest('.model-item');
+                    if (item) {
+                        item.classList.add('selected');
+                        const isVertex = id.startsWith('vertex_ai/');
+                        const targetList = isVertex ? vxSelectedList : orSelectedList;
+                        if (targetList) targetList.appendChild(item);
+                    }
+                } else {
+                    matchedCount++;
+                    const isVertex = id.startsWith('vertex_ai/');
+                    const targetList = isVertex ? vxSelectedList : orSelectedList;
+                    if (targetList) {
+                        const div = document.createElement('div');
+                        div.className = 'model-item selected orphaned-model';
+                        div.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+                        div.style.borderColor = '#f87171';
+                        div.style.borderLeft = '4px solid #f87171';
+                        div.dataset.name = id;
+                        div.dataset.id = id;
+                        div.dataset.brand = isVertex ? 'google' : 'other';
+                        div.dataset.price = '0';
+                        div.dataset.popularity = '-1';
+                        div.innerHTML = `
+                            <div class="model-checkbox-wrap">
+                                <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
+                            </div>
+                            <div class="model-info">
+                                <div class="model-header-row">
+                                    <div class="model-title-wrap">
+                                        <span class="model-tier tier-frontier" style="background: rgba(248, 113, 113, 0.2); color: #f87171; border-color: #f87171;">UNAVAILABLE</span>
+                                        <span class="model-name" style="color: #f87171; font-weight: bold;" title="${id}">${id}</span>
+                                    </div>
+                                </div>
+                                <div class="model-id">Imported model not currently in catalog. Uncheck to remove.</div>
+                                <div class="model-meta-row">
+                                    <span class="model-specs">In: ? · Out: ?</span>
+                                </div>
+                            </div>
+                        `;
+                        targetList.prepend(div);
+                    }
+                }
+            });
+
+            closeImportModal();
+            applyAllFilters();
+            alert(`✅ Successfully imported ${matchedCount} model selections! Click 'Save & Sync' (FAB or submit) to apply to LiteLLM.`);
+        }
+
+        function formatTokens(num) {
+            if (!num || num === 0) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toString();
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.querySelectorAll('.model-list').forEach(list => {
+                list.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
+        function togglePassword(id) {
+            const input = document.getElementById(id);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function toggleServiceAccountJson() {
+            const txt = document.getElementById('setting_VX_JSON');
+            const btn = document.getElementById('toggleVxJsonBtn');
+            if (txt.classList.contains('revealed')) {
+                txt.classList.remove('revealed');
+                btn.innerText = '👁️ Reveal JSON';
+            } else {
+                txt.classList.add('revealed');
+                btn.innerText = '🔒 Mask JSON';
+            }
+        }
+
+        async function openSettings() {
+            try {
+                const resp = await fetch('/api/settings');
+                const settings = await resp.json();
+                
+                document.getElementById('setting_OR_KEY').value = settings.OPENROUTER_API_KEY || '';
+                document.getElementById('setting_VX_PROJ').value = settings.VERTEX_PROJECT || '';
+                document.getElementById('setting_VX_LOC').value = settings.VERTEX_LOCATION || 'global';
+                document.getElementById('setting_VX_JSON').value = settings.VERTEX_CREDENTIALS_JSON || '';
+                document.getElementById('setting_CONFIG_PATH').value = settings.LITELLM_CONFIG || '/app/config/config.yaml';
+                
+                document.getElementById('setting_APPRISE_URL').value = settings.APPRISE_URL || '';
+                document.getElementById('setting_NOTIF_ENABLED').checked = (settings.NOTIFICATION_ENABLED || 'true').toLowerCase() === 'true';
+                document.getElementById('setting_NOTIF_UNAVAIL').checked = (settings.NOTIFY_ON_UNAVAILABLE || 'true').toLowerCase() === 'true';
+                document.getElementById('setting_NOTIF_TRENDING').checked = (settings.NOTIFY_ON_TRENDING || 'true').toLowerCase() === 'true';
+                document.getElementById('setting_HEALTH_INTERVAL').value = settings.HEALTH_CHECK_INTERVAL_HOURS || '24';
+                document.getElementById('setting_PROBE_MODE').value = settings.PROBE_MODE || 'catalog';
+
+                // Reset JSON mask state
+                const txt = document.getElementById('setting_VX_JSON');
+                const btn = document.getElementById('toggleVxJsonBtn');
+                txt.classList.remove('revealed');
+                btn.innerText = '👁️ Reveal JSON';
+
+                document.getElementById('settingsModal').style.display = 'block';
+            } catch (e) { alert('Failed to load settings'); }
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        async function testNotification() {
+            const url = document.getElementById('setting_APPRISE_URL').value;
+            try {
+                const resp = await fetch('/api/notifications/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    alert('✅ Test alert sent successfully!');
+                } else {
+                    alert('❌ Test alert failed: ' + (res.message || res.response || JSON.stringify(res)));
+                }
+            } catch (e) {
+                alert('Error sending test notification: ' + e);
+            }
+        }
+
+        async function triggerHealthCheck() {
+            try {
+                const resp = await fetch('/api/health/check', { method: 'POST' });
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    alert(`🩺 Health check complete!\nChecked: ${res.total_checked}\nHealthy: ${res.healthy}\nUnhealthy: ${res.unhealthy}`);
+                } else {
+                    alert('Health check error: ' + (res.message || JSON.stringify(res)));
+                }
+            } catch (e) {
+                alert('Error triggering health check: ' + e);
+            }
+        }
+
+        document.getElementById('settingsForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Explicitly handle checkboxes
+            data.NOTIFICATION_ENABLED = document.getElementById('setting_NOTIF_ENABLED').checked ? 'true' : 'false';
+            data.NOTIFY_ON_UNAVAILABLE = document.getElementById('setting_NOTIF_UNAVAIL').checked ? 'true' : 'false';
+            data.NOTIFY_ON_TRENDING = document.getElementById('setting_NOTIF_TRENDING').checked ? 'true' : 'false';
+
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (resp.ok) {
+                    closeSettings();
+                    alert('Settings saved. Refreshing models...');
+                    window.location.reload();
+                }
+            } catch (e) { alert('Error saving settings'); }
+        };
+
+        function toggleSection(sectionId) {
+            const sec = document.getElementById(sectionId);
+            if (sec) {
+                sec.classList.toggle('collapsed');
+            }
+        }
+
+        function handleModelToggle(checkbox) {
+            const item = checkbox.closest('.model-item');
+            if (!item) return;
+            
+            const isVertex = item.dataset.id.startsWith('vertex_ai/');
+            const selectedList = document.getElementById(isVertex ? 'vxSelectedList' : 'orSelectedList');
+            const availableList = document.getElementById(isVertex ? 'vxAvailableList' : 'orAvailableList');
+            
+            if (checkbox.checked) {
+                item.classList.add('selected');
+                selectedList.appendChild(item);
+            } else {
+                item.classList.remove('selected');
+                availableList.appendChild(item);
+            }
+            
+            applyAllFilters();
+        }
+
+        function applyAllFilters() {
+            const query = document.getElementById('globalSearch').value.toLowerCase();
+            
+            const selectedBrands = new Set();
+            document.querySelectorAll('#brandFilterList input:checked').forEach(cb => selectedBrands.add(cb.value));
+
+            const selectedTiers = new Set();
+            if (document.getElementById('tierFrontier') && document.getElementById('tierFrontier').checked) selectedTiers.add('frontier');
+            if (document.getElementById('tierModerate') && document.getElementById('tierModerate').checked) selectedTiers.add('moderate');
+            if (document.getElementById('tierCheap') && document.getElementById('tierCheap').checked) selectedTiers.add('cheap');
+            
+            const maxInPrice = parseFloat(document.getElementById('maxInPrice').value) || Infinity;
+            const maxOutPrice = parseFloat(document.getElementById('maxOutPrice').value) || Infinity;
+            const imgIn = document.getElementById('capImageIn').checked;
+            const imgOut = document.getElementById('capImageOut').checked;
+            const audIn = document.getElementById('capAudioIn').checked;
+            const audOut = document.getElementById('capAudioOut').checked;
+            const func = document.getElementById('capFunc').checked;
+            const onlySelected = document.getElementById('filterSelected').checked;
+
+            // Prepare Wildcard/Regex
+            let regex = null;
+            if (query) {
+                try {
+                    if (query.startsWith('/') && query.endsWith('/')) {
+                        regex = new RegExp(query.slice(1, -1), 'i');
+                    } else {
+                        const pattern = query.replace(/\*/g, '.*');
+                        regex = new RegExp(pattern, 'i');
+                    }
+                } catch(e) { regex = null; }
+            }
+
+            let counts = {
+                orSelected: 0,
+                orAvailable: 0,
+                vxSelected: 0,
+                vxAvailable: 0
+            };
+
+            document.querySelectorAll('.model-item').forEach(item => {
+                const name = item.dataset.name || '';
+                const id = item.dataset.id || '';
+                const iBrand = item.dataset.brand;
+                const iTier = item.dataset.tier || 'moderate';
+                const iInPrice = parseFloat(item.dataset.inPrice);
+                const iOutPrice = parseFloat(item.dataset.outPrice);
+                const iImgIn = item.dataset.imageIn === 'true';
+                const iImgOut = item.dataset.imageOut === 'true';
+                const iAudIn = item.dataset.audioIn === 'true';
+                const iAudOut = item.dataset.audioOut === 'true';
+                const iFunc = item.dataset.func === 'true';
+                const isSelected = item.querySelector('input[type="checkbox"]').checked;
+                
+                // Update selected visual highlight class
+                if (isSelected) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+
+                // Update human-readable tokens display
+                const specsDiv = item.querySelector('.model-specs');
+                if (specsDiv) {
+                    const inLimit = parseInt(item.dataset.maxInput);
+                    const outLimit = parseInt(item.dataset.maxOutput);
+                    let specsText = '';
+                    if (inLimit) specsText += `In: ${formatTokens(inLimit)}`;
+                    if (outLimit) specsText += ` · Out: ${formatTokens(outLimit)}`;
+                    specsDiv.innerText = specsText || 'In: ? · Out: ?';
+                }
+
+                let visible = true;
+
+                if (regex) {
+                    visible = regex.test(name) || regex.test(id);
+                } else if (query) {
+                    visible = name.includes(query) || id.includes(query);
+                }
+
+                if (visible && selectedBrands.size > 0 && !selectedBrands.has(iBrand)) visible = false;
+                if (visible && selectedTiers.size > 0 && !selectedTiers.has(iTier)) visible = false;
+                if (visible && iInPrice > maxInPrice) visible = false;
+                if (visible && iOutPrice > maxOutPrice) visible = false;
+                if (visible && imgIn && !iImgIn) visible = false;
+                if (visible && imgOut && !iImgOut) visible = false;
+                if (visible && audIn && !iAudIn) visible = false;
+                if (visible && audOut && !iAudOut) visible = false;
+                if (visible && func && !iFunc) visible = false;
+                if (visible && onlySelected && !isSelected) visible = false;
+
+                item.style.display = visible ? 'flex' : 'none';
+                
+                if (visible) {
+                    const parentId = item.parentElement ? item.parentElement.id : '';
+                    if (parentId === 'orSelectedList') counts.orSelected++;
+                    else if (parentId === 'orAvailableList') counts.orAvailable++;
+                    else if (parentId === 'vxSelectedList') counts.vxSelected++;
+                    else if (parentId === 'vxAvailableList') counts.vxAvailable++;
+                }
+            });
+
+            // Update empty states
+            function checkEmptyState(listId, count, msg) {
+                const list = document.getElementById(listId);
+                if (!list) return;
+                let emptyEl = list.querySelector('.empty-section-message');
+                if (count === 0) {
+                    if (!emptyEl) {
+                        emptyEl = document.createElement('div');
+                        emptyEl.className = 'empty-section-message';
+                        emptyEl.innerText = msg;
+                        list.appendChild(emptyEl);
+                    }
+                } else if (emptyEl) {
+                    emptyEl.remove();
+                }
+            }
+
+            checkEmptyState('orSelectedList', counts.orSelected, 'No models selected');
+            checkEmptyState('orAvailableList', counts.orAvailable, 'No available models matching filters');
+            checkEmptyState('vxSelectedList', counts.vxSelected, 'No models selected');
+            checkEmptyState('vxAvailableList', counts.vxAvailable, 'No available models matching filters');
+
+            const sortOrder = document.getElementById('sortOrder') ? document.getElementById('sortOrder').value : 'popularity';
+            
+            function sortList(listId) {
+                const list = document.getElementById(listId);
+                if (!list) return;
+                const items = Array.from(list.querySelectorAll('.model-item'));
+                items.sort((a, b) => {
+                    // Always keep orphaned models at the top
+                    if (a.classList.contains('orphaned-model') && !b.classList.contains('orphaned-model')) return -1;
+                    if (!a.classList.contains('orphaned-model') && b.classList.contains('orphaned-model')) return 1;
+                    
+                    if (sortOrder === 'popularity') {
+                        return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
+                    } else if (sortOrder === 'priceAsc') {
+                        return parseFloat(a.dataset.price || 0) - parseFloat(b.dataset.price || 0);
+                    } else if (sortOrder === 'priceDesc') {
+                        return parseFloat(b.dataset.price || 0) - parseFloat(a.dataset.price || 0);
+                    } else if (sortOrder === 'name') {
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                    } else if (sortOrder === 'brand') {
+                        const brandDiff = (a.dataset.brand || '').localeCompare(b.dataset.brand || '');
+                        if (brandDiff !== 0) return brandDiff;
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                    }
+                    return 0;
+                });
+                items.forEach(item => list.appendChild(item));
+            }
+            
+            sortList('orSelectedList');
+            sortList('orAvailableList');
+            sortList('vxSelectedList');
+            sortList('vxAvailableList');
+
+            document.getElementById('orSelectedCount').innerText = counts.orSelected;
+            document.getElementById('orAvailableCount').innerText = counts.orAvailable;
+            document.getElementById('orCount').innerText = counts.orSelected + counts.orAvailable;
+
+            document.getElementById('vxSelectedCount').innerText = counts.vxSelected;
+            document.getElementById('vxAvailableCount').innerText = counts.vxAvailable;
+            document.getElementById('vxCount').innerText = counts.vxSelected + counts.vxAvailable;
+        }
+
+        function populateBrands() {
+            const brands = new Set();
+            document.querySelectorAll('.model-item').forEach(item => {
+                if (item.dataset.brand) brands.add(item.dataset.brand);
+            });
+            const list = document.getElementById('brandFilterList');
+            if (!list) return;
+            
+            const checked = new Set();
+            list.querySelectorAll('input:checked').forEach(cb => checked.add(cb.value));
+            
+            list.innerHTML = '';
+            
+            Array.from(brands).sort().forEach(b => {
+                const label = document.createElement('label');
+                label.className = 'brand-filter-item';
+                
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = b;
+                cb.onchange = applyAllFilters;
+                if (checked.has(b)) cb.checked = true;
+                
+                const text = document.createTextNode(' ' + b.charAt(0).toUpperCase() + b.slice(1));
+                
+                label.appendChild(cb);
+                label.appendChild(text);
+                list.appendChild(label);
+            });
+        }
+
+        window.onload = async () => {
+            populateBrands();
+            
+            try {
+                const resp = await fetch('/api/config');
+                const data = await resp.json();
+                if (data.selected_ids) {
+                    const orSelectedList = document.getElementById('orSelectedList');
+                    const vxSelectedList = document.getElementById('vxSelectedList');
+                    
+                    data.selected_ids.forEach(id => {
+                        const checkbox = document.querySelector(`input[name="models"][value="${id}"]`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                            const item = checkbox.closest('.model-item');
+                            if (item) {
+                                item.classList.add('selected');
+                                const isVertex = id.startsWith('vertex_ai/');
+                                const targetList = isVertex ? vxSelectedList : orSelectedList;
+                                targetList.appendChild(item);
+                            }
+                        } else {
+                            // Model no longer available! Surface to top of selected list.
+                            const isVertex = id.startsWith('vertex_ai/');
+                            const targetList = isVertex ? vxSelectedList : orSelectedList;
+                            
+                            const div = document.createElement('div');
+                            div.className = 'model-item selected orphaned-model';
+                            div.style.backgroundColor = 'rgba(248, 113, 113, 0.12)';
+                            div.style.borderColor = '#f87171';
+                            div.style.borderLeft = '3px solid #f87171';
+                            div.dataset.name = id;
+                            div.dataset.id = id;
+                            div.dataset.brand = isVertex ? 'google' : 'other';
+                            div.dataset.price = '0';
+                            div.dataset.popularity = '-1';
+                            
+                            div.innerHTML = `
+                                <div class="model-checkbox-wrap">
+                                    <input type="checkbox" name="models" value="${id}" checked onchange="handleModelToggle(this)">
+                                </div>
+                                <div class="model-info">
+                                    <div class="model-header-row">
+                                        <div class="model-title-wrap">
+                                            <span class="model-tier tier-frontier" style="background: rgba(248, 113, 113, 0.2); color: #f87171; border-color: #f87171;">UNAVAILABLE</span>
+                                            <span class="model-name" style="color: #f87171; font-weight: bold;" title="${id}">${id}</span>
+                                        </div>
+                                    </div>
+                                    <div class="model-id">Model in config but no longer returned by provider. Uncheck to remove.</div>
+                                    <div class="model-meta-row">
+                                        <span class="model-specs">In: ? · Out: ?</span>
+                                    </div>
+                                </div>
+                            `;
+                            targetList.prepend(div);
+                        }
+                    });
+                }
+            } catch (e) { console.error("Failed to load config", e); }
+            
+            applyAllFilters();
+        };
+
+        async function testModel(modelId) {
+            const safeId = 'item-' + modelId.replaceAll('/', '-').replaceAll('.', '-');
+            const item = document.getElementById(safeId);
+            if (!item) return;
+            const btn = item.querySelector('.btn-test');
+            const originalText = btn.innerText;
+            btn.innerText = '...'; btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('model_id', modelId);
+                const resp = await fetch('/test', { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    btn.innerText = 'OK'; btn.style.backgroundColor = 'var(--success)';
+                } else {
+                    btn.innerText = 'FAIL'; btn.style.backgroundColor = 'var(--danger)';
+                    console.error(result.message);
+                }
+            } catch (e) { btn.innerText = 'ERR'; }
+            finally {
+                if (btn.innerText !== 'OK') {
+                    setTimeout(() => { btn.innerText = originalText; btn.disabled = false; btn.style.backgroundColor = ''; }, 3000);
+                }
+            }
+        }
+
+        async function forceRefresh() {
+            if (!confirm('Fetch latest models?')) return;
+            const btn = document.querySelector('.btn-refresh');
+            btn.innerText = 'Refreshing...'; btn.disabled = true;
+            try {
+                const resp = await fetch('/force-refresh', { method: 'POST' });
+                if (resp.ok) window.location.reload();
+            } catch (e) { alert('Error'); btn.innerText = 'Force Refresh Metadata'; btn.disabled = false; }
+        }
+
+        async function restartLiteLLM() {
+            if (!confirm('Restart LiteLLM container and verify health?')) return;
+            const fabBtn = document.getElementById('restartProxyFabBtn');
+            const originalText = fabBtn.innerText;
+            fabBtn.innerText = '⏳';
+            fabBtn.disabled = true;
+            
+            try {
+                const resp = await fetch('/restart-litellm', { method: 'POST' });
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    alert('✅ ' + (res.message || 'LiteLLM restarted and health verified (HTTP 200 OK)!'));
+                } else if (res.reverted) {
+                    alert('⚠️ ' + res.message);
+                } else {
+                    alert('❌ Restart error: ' + (res.message || JSON.stringify(res)));
+                }
+            } catch (e) { 
+                alert('Error restarting LiteLLM: ' + e); 
+            } finally {
+                fabBtn.innerText = originalText;
+                fabBtn.disabled = false;
+            }
+        }
+
+        document.getElementById('syncForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const fabBtn = document.getElementById('syncConfigFabBtn');
+            const originalText = fabBtn.innerText;
+            fabBtn.innerText = '⏳';
+            fabBtn.disabled = true;
+
+            try {
+                const formData = new FormData(e.target);
+                const resp = await fetch('/sync', { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    alert(`✅ Saved & synced ${result.updated_models} models into LiteLLM config and OpenCode config!`);
+                } else {
+                    alert('❌ Sync failed: ' + (result.message || JSON.stringify(result)));
+                }
+            } catch (e) {
+                alert('Error syncing configuration: ' + e);
+            } finally {
+                fabBtn.innerText = originalText;
+                fabBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

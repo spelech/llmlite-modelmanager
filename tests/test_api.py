@@ -81,3 +81,49 @@ def test_sync_models_minimal():
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert response.json()["updated_models"] == 1
+
+def test_api_models_discovered():
+    response = client.get("/api/models/discovered")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+def test_api_notifications_test():
+    with patch("main.send_notification", return_value={"status": "success", "status_code": 200}):
+        response = client.post("/api/notifications/test", json={"url": "http://apprise:8000/notify/system"})
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+def test_api_health_check():
+    with patch("main.check_active_models_health", return_value={"status": "success", "total_checked": 0, "healthy": 0, "unhealthy": 0, "results": []}):
+        response = client.post("/api/health/check")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+def test_restart_litellm_success():
+    mock_docker = MagicMock()
+    mock_container = MagicMock()
+    mock_docker.containers.get.return_value = mock_container
+    
+    with patch("docker.from_env", return_value=mock_docker), \
+         patch("app.sync.verify_litellm_healthy", return_value=True):
+        response = client.post("/restart-litellm")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        mock_container.restart.assert_called_once()
+
+def test_restart_litellm_failure_and_auto_revert():
+    mock_docker = MagicMock()
+    mock_container = MagicMock()
+    mock_docker.containers.get.return_value = mock_container
+    
+    with patch("docker.from_env", return_value=mock_docker), \
+         patch("app.sync.verify_litellm_healthy", return_value=False), \
+         patch("os.path.exists", return_value=True), \
+         patch("shutil.copy2") as mock_copy, \
+         patch("app.sync.send_notification", return_value=None):
+        response = client.post("/restart-litellm")
+        assert response.status_code == 200
+        assert response.json()["status"] == "error"
+        assert response.json()["reverted"] is True
+        mock_copy.assert_called_once()
+        assert mock_container.restart.call_count == 2
