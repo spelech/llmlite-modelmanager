@@ -105,7 +105,7 @@ def test_restart_litellm_success():
     mock_docker.containers.get.return_value = mock_container
     
     with patch("docker.from_env", return_value=mock_docker), \
-         patch("main.verify_litellm_healthy", return_value=True):
+         patch("app.sync.verify_litellm_healthy", return_value=True):
         response = client.post("/restart-litellm")
         assert response.status_code == 200
         assert response.json()["status"] == "success"
@@ -117,10 +117,10 @@ def test_restart_litellm_failure_and_auto_revert():
     mock_docker.containers.get.return_value = mock_container
     
     with patch("docker.from_env", return_value=mock_docker), \
-         patch("main.verify_litellm_healthy", return_value=False), \
+         patch("app.sync.verify_litellm_healthy", return_value=False), \
          patch("os.path.exists", return_value=True), \
          patch("shutil.copy2") as mock_copy, \
-         patch("main.send_notification", return_value=None):
+         patch("app.sync.send_notification", return_value=None):
         response = client.post("/restart-litellm")
         assert response.status_code == 200
         assert response.json()["status"] == "error"
