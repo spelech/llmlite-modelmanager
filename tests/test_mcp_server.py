@@ -8,6 +8,7 @@ from app.mcp_server import (
     add_model,
     remove_model,
     sync_models,
+    sync_librechat,
     check_model_health,
     get_settings,
     update_settings,
@@ -124,3 +125,16 @@ async def test_add_and_remove_model_tools():
         res_remove = await remove_model("openrouter/deepseek/deepseek-chat")
         assert res_remove["status"] == "success"
         mock_sync.assert_called_once_with([])
+
+@pytest.mark.asyncio
+async def test_sync_librechat_tool():
+    with patch("app.mcp_server.get_all_settings", new_callable=AsyncMock) as mock_get_settings, \
+         patch("os.path.exists", return_value=True), \
+         patch("builtins.open", MagicMock()), \
+         patch("yaml.safe_load", return_value={"model_list": [{"model_name": "vertex/gemini-3.7-flash"}]}), \
+         patch("app.sync.export_librechat_config", return_value={"status": "success", "synced": [{"path": "p", "models_count": 1}]}) as mock_export:
+        
+        mock_get_settings.return_value = {"LITELLM_CONFIG": "/app/config/config.yaml"}
+        res = await sync_librechat()
+        assert res["status"] == "success"
+        mock_export.assert_called_once()

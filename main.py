@@ -48,6 +48,7 @@ from app.vertex import (
 from app.openrouter import get_openrouter_models
 from app.sync import (
     export_opencode_config,
+    export_librechat_config,
     sync_models_internal,
     verify_litellm_healthy,
     restart_litellm_internal
@@ -196,6 +197,20 @@ async def sync_opencode():
             models = config.get("model_list", [])
             export_opencode_config(models)
             return {"status": "success", "exported_models": len(models)}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "error", "message": "Config file not found"}
+
+@app.post("/api/sync/librechat")
+async def sync_librechat():
+    config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f) or {}
+            models = config.get("model_list", [])
+            res = export_librechat_config(models)
+            return {"status": "success", "exported_models": len(models), "results": res}
         except Exception as e:
             return {"status": "error", "message": str(e)}
     return {"status": "error", "message": "Config file not found"}

@@ -99,6 +99,16 @@ def test_api_health_check():
         assert response.status_code == 200
         assert response.json()["status"] == "success"
 
+def test_api_sync_librechat():
+    with patch("main.export_librechat_config", return_value={"status": "success", "synced": [{"path": "dummy", "models_count": 1}]}), \
+         patch("os.path.exists", return_value=True), \
+         patch("builtins.open", MagicMock()):
+        with patch("yaml.safe_load", return_value={"model_list": [{"model_name": "test"}]}):
+            response = client.post("/api/sync/librechat")
+            assert response.status_code == 200
+            assert response.json()["status"] == "success"
+            assert response.json()["exported_models"] == 1
+
 def test_restart_litellm_success():
     mock_docker = MagicMock()
     mock_container = MagicMock()
