@@ -54,7 +54,10 @@ async def list_available_models(
     provider: Optional[str] = None,
     tier: Optional[str] = None,
     search: Optional[str] = None,
-    brand: Optional[str] = None
+    brand: Optional[str] = None,
+    min_coding_score: Optional[float] = None,
+    min_intelligence_score: Optional[float] = None,
+    min_agentic_score: Optional[float] = None
 ) -> List[Dict]:
     """
     Query available models from OpenRouter and Vertex AI with filters.
@@ -63,6 +66,9 @@ async def list_available_models(
     :param tier: Filter by pricing tier ('cheap', 'moderate', or 'frontier').
     :param search: Keyword search in model ID or name.
     :param brand: Filter by model creator/brand (e.g. 'google', 'anthropic', 'openai', 'deepseek', 'meta-llama').
+    :param min_coding_score: Minimum coding benchmark score (0-100).
+    :param min_intelligence_score: Minimum intelligence benchmark score (0-100).
+    :param min_agentic_score: Minimum agentic benchmark score (0-100).
     """
     all_models = get_current_models_list()
     
@@ -72,6 +78,7 @@ async def list_available_models(
         m_brand = m.get("brand", "").lower()
         m_tier = m.get("tier") or classify_model_tier(m)
         m_provider = mid.split("/")[0] if "/" in mid else "unknown"
+        benchmarks = m.get("benchmarks", {})
         
         if provider and m_provider.lower() != provider.lower():
             continue
@@ -82,6 +89,19 @@ async def list_available_models(
         if search:
             s_low = search.lower()
             if s_low not in mid.lower() and s_low not in m.get("name", "").lower():
+                continue
+                
+        if min_coding_score is not None:
+            c_score = benchmarks.get("coding")
+            if c_score is None or float(c_score) < min_coding_score:
+                continue
+        if min_intelligence_score is not None:
+            i_score = benchmarks.get("intelligence")
+            if i_score is None or float(i_score) < min_intelligence_score:
+                continue
+        if min_agentic_score is not None:
+            a_score = benchmarks.get("agentic")
+            if a_score is None or float(a_score) < min_agentic_score:
                 continue
                 
         m_copy = dict(m)

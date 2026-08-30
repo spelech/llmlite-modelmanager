@@ -14,7 +14,7 @@ from app.config import (
     app_state,
     get_app_setting
 )
-from app.capabilities import extract_capabilities, GEMINI_SPECS, FALLBACK_PRICING
+from app.capabilities import extract_capabilities, extract_benchmarks, resolve_benchmarks_for_model, GEMINI_SPECS, FALLBACK_PRICING
 from app.discovery import classify_model_tier, process_and_track_discovered_models
 
 def get_google_access_token() -> Optional[str]:
@@ -216,7 +216,8 @@ async def verify_and_cache_vertex_models():
             },
             "max_input_tokens": max_in,
             "max_output_tokens": max_out,
-            "capabilities": extract_capabilities(m.get("description", ""), mid, m.get("supported_methods"))
+            "capabilities": extract_capabilities(m.get("description", ""), mid, m.get("supported_methods")),
+            "benchmarks": resolve_benchmarks_for_model(mid, app_state.get("or_models", []))
         }
         model_item["tier"] = classify_model_tier(model_item)
         models.append(model_item)

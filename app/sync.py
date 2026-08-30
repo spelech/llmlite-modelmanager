@@ -195,7 +195,9 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                 "max_input_tokens": m_data.get("max_input_tokens", 0),
                 "max_output_tokens": m_data.get("max_output_tokens", 0),
                 "capabilities": m_data.get("capabilities", {}),
-                "brand": m_data.get("brand", "other")
+                "benchmarks": m_data.get("benchmarks", {}),
+                "brand": m_data.get("brand", "other"),
+                "tier": m_data.get("tier", "moderate")
             }
         }
         

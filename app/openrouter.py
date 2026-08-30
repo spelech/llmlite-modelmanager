@@ -1,6 +1,6 @@
 import httpx
 from typing import List, Dict
-from app.capabilities import extract_capabilities
+from app.capabilities import extract_capabilities, extract_benchmarks
 from app.discovery import classify_model_tier
 
 async def get_openrouter_models() -> List[Dict]:
@@ -28,7 +28,8 @@ async def get_openrouter_models() -> List[Dict]:
                     "pricing": pricing_dict,
                     "max_input_tokens": m.get("context_length", 0),
                     "max_output_tokens": m.get("top_provider", {}).get("max_completion_tokens", 0),
-                    "capabilities": extract_capabilities(m.get("description", ""), m["id"])
+                    "capabilities": extract_capabilities(m.get("description", ""), m["id"]),
+                    "benchmarks": extract_benchmarks(m.get("benchmarks"))
                 }
                 model_item["tier"] = classify_model_tier(model_item)
                 models.append(model_item)

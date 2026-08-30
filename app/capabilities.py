@@ -118,3 +118,82 @@ def extract_capabilities(description: str = "", model_id: str = "", supported_me
         "function_calling": is_claude or is_openai or match(["function", "tool", "agent", "instruct", "chat", "command-r", "qwen", "mistral", "deepseek"]),
         "streaming": True
     }
+
+FALLBACK_GEMINI_BENCHMARKS = {
+    "gemini-3.7-flash": {"coding": 76.1, "intelligence": 56.0, "agentic": 45.1},
+    "gemini-3.7-pro": {"coding": 82.0, "intelligence": 64.5, "agentic": 54.0},
+    "gemini-2.5-flash": {"coding": 73.0, "intelligence": 55.0, "agentic": 44.0},
+    "gemini-2.5-pro": {"coding": 78.5, "intelligence": 62.0, "agentic": 51.2},
+    "gemini-2.0-flash": {"coding": 71.0, "intelligence": 53.0, "agentic": 42.0},
+    "gemini-1.5-pro": {"coding": 68.0, "intelligence": 54.0, "agentic": 42.0},
+    "gemini-1.5-flash": {"coding": 60.0, "intelligence": 48.0, "agentic": 38.0}
+}
+
+def extract_benchmarks(benchmarks_data: Optional[Dict]) -> Dict[str, Optional[float]]:
+    """
+    Extract normalized 0-100 benchmark scores (coding, intelligence, agentic)
+    from OpenRouter benchmarks payload (e.g. Artificial Analysis indices).
+    """
+    res = {
+        "coding": None,
+        "intelligence": None,
+        "agentic": None
+    }
+    if not benchmarks_data or not isinstance(benchmarks_data, dict):
+        return res
+    
+    aa = benchmarks_data.get("artificial_analysis")
+    if not aa or not isinstance(aa, dict):
+        return res
+        
+    if aa.get("coding_index") is not None:
+        try:
+            res["coding"] = round(float(aa["coding_index"]), 1)
+        except (ValueError, TypeError):
+            pass
+    if aa.get("intelligence_index") is not None:
+        try:
+            res["intelligence"] = round(float(aa["intelligence_index"]), 1)
+        except (ValueError, TypeError):
+            pass
+    if aa.get("agentic_index") is not None:
+        try:
+            res["agentic"] = round(float(aa["agentic_index"]), 1)
+        except (ValueError, TypeError):
+            pass
+    return res
+
+def resolve_benchmarks_for_model(model_id: str, or_models: Optional[List[Dict]] = None) -> Dict[str, Optional[float]]:
+    """
+    Find matching benchmark scores for a model (e.g. Vertex model) from OpenRouter models or fallbacks.
+    """
+    base_slug = model_id.split("/")[-1].lower()
+    
+    if or_models:
+        for om in or_models:
+            om_id = om.get("id", "").lower().replace("openrouter/", "")
+            om_slug = om_id.split("/")[-1]
+            if om_slug == base_slug or om_id == f"google/{base_slug}":
+                b = om.get("benchmarks", {})
+                if b and any(v is not None for v in b.values()):
+                    return {
+                        "coding": b.get("coding"),
+                        "intelligence": b.get("intelligence"),
+                        "agentic": b.get("agentic")
+                    }
+
+    # Check fallback lookup
+    for key, benchmarks in FALLBACK_GEMINI_BENCHMARKS.items():
+        if key in base_slug or base_slug.startswith(key):
+            return {
+                "coding": benchmarks.get("coding"),
+                "intelligence": benchmarks.get("intelligence"),
+                "agentic": benchmarks.get("agentic")
+            }
+            
+    return {
+        "coding": None,
+        "intelligence": None,
+        "agentic": None
+    }
+

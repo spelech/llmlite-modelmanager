@@ -120,6 +120,7 @@
         .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.84em; cursor: pointer; color: var(--text-dim); font-weight: 500;}
         .checkbox-item:hover { color: var(--text-main); }
         input[type="checkbox"] { transform: scale(1.1); cursor: pointer; accent-color: var(--accent); }
+        input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent); background: transparent; margin: 0; }
 
         .brand-filter-list {
             display: flex;
@@ -369,6 +370,34 @@
         .cap-tag { font-size: 0.62em; background: var(--bg-input); padding: 2px 7px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 600; border: 1px solid var(--border-subtle);}
         .cap-tag.active { background: rgba(249, 115, 22, 0.18); color: var(--accent); border-color: rgba(249, 115, 22, 0.4); }
 
+        /* Benchmark Badges */
+        .benchmark-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+        .score-chip {
+            font-size: 0.64em;
+            padding: 2px 7px;
+            border-radius: var(--radius-pill);
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            letter-spacing: 0.2px;
+        }
+        .score-high {
+            background: rgba(163, 230, 53, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(163, 230, 53, 0.35);
+        }
+        .score-mid {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+        .score-low {
+            background: rgba(156, 138, 119, 0.15);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
         .model-tier {
             font-size: 0.62em;
             padding: 2px 7px;
@@ -534,6 +563,9 @@
                 <span class="filter-label">Sort By</span>
                 <select id="sortOrder" onchange="applyAllFilters()" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
                     <option value="popularity">Popularity (Most Popular)</option>
+                    <option value="codingDesc">💻 Coding Score (High to Low)</option>
+                    <option value="intelDesc">🧠 Intelligence Score (High to Low)</option>
+                    <option value="agenticDesc">🤖 Agentic Score (High to Low)</option>
                     <option value="priceAsc">Price (Low to High)</option>
                     <option value="priceDesc">Price (High to Low)</option>
                     <option value="name">Name (A-Z)</option>
@@ -544,6 +576,36 @@
             <div class="filter-group">
                 <span class="filter-label">Wildcard Search</span>
                 <input type="text" id="globalSearch" placeholder="e.g. gemini*flash" onkeyup="applyAllFilters()">
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Benchmarks (Min Score)</span>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                            <span>💻 Min Coding</span>
+                            <span id="minCodingVal" style="font-weight: 700; color: var(--accent);">0</span>
+                        </div>
+                        <input type="range" id="minCoding" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minCodingVal').innerText = this.value; applyAllFilters()">
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                            <span>🧠 Min Intelligence</span>
+                            <span id="minIntelVal" style="font-weight: 700; color: var(--accent);">0</span>
+                        </div>
+                        <input type="range" id="minIntel" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minIntelVal').innerText = this.value; applyAllFilters()">
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                            <span>🤖 Min Agentic</span>
+                            <span id="minAgenticVal" style="font-weight: 700; color: var(--accent);">0</span>
+                        </div>
+                        <input type="range" id="minAgentic" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minAgenticVal').innerText = this.value; applyAllFilters()">
+                    </div>
+                    <label class="checkbox-item" style="margin-top: 2px;">
+                        <input type="checkbox" id="includeUnrated" onchange="applyAllFilters()"> Include Unrated
+                    </label>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -625,6 +687,9 @@
                                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
                                          data-in-price="{{ m.pricing.prompt_1m }}"
                                          data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-coding="{{ m.benchmarks.coding if m.benchmarks and m.benchmarks.coding is not none else '' }}"
+                                         data-intel="{{ m.benchmarks.intelligence if m.benchmarks and m.benchmarks.intelligence is not none else '' }}"
+                                         data-agentic="{{ m.benchmarks.agentic if m.benchmarks and m.benchmarks.agentic is not none else '' }}"
                                          data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
                                          data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
                                          data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
@@ -634,7 +699,7 @@
                                          data-max-output="{{ m.max_output_tokens or 0 }}"
                                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                                         <div class="model-checkbox-wrap">
-                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                             <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
                                         </div>
                                         <div class="model-info">
                                             <div class="model-header-row">
@@ -650,6 +715,19 @@
                                                 <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
                                                 <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
+                                            {% if m.benchmarks and (m.benchmarks.get('coding') is not none or m.benchmarks.get('intelligence') is not none or m.benchmarks.get('agentic') is not none) %}
+                                            <div class="benchmark-badges">
+                                                {% if m.benchmarks.get('coding') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('coding') >= 70 %}score-high{% elif m.benchmarks.get('coding') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.get('coding')) }}</span>
+                                                {% endif %}
+                                                {% if m.benchmarks.get('intelligence') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('intelligence') >= 70 %}score-high{% elif m.benchmarks.get('intelligence') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.get('intelligence')) }}</span>
+                                                {% endif %}
+                                                {% if m.benchmarks.get('agentic') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('agentic') >= 70 %}score-high{% elif m.benchmarks.get('agentic') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.get('agentic')) }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
                                             <div class="capabilities">
                                                 {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
                                                 {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
@@ -704,6 +782,9 @@
                                          data-price="{{ m.pricing.prompt_1m + m.pricing.completion_1m }}"
                                          data-in-price="{{ m.pricing.prompt_1m }}"
                                          data-out-price="{{ m.pricing.completion_1m }}"
+                                         data-coding="{{ m.benchmarks.coding if m.benchmarks and m.benchmarks.coding is not none else '' }}"
+                                         data-intel="{{ m.benchmarks.intelligence if m.benchmarks and m.benchmarks.intelligence is not none else '' }}"
+                                         data-agentic="{{ m.benchmarks.agentic if m.benchmarks and m.benchmarks.agentic is not none else '' }}"
                                          data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
                                          data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
                                          data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
@@ -713,7 +794,7 @@
                                          data-max-output="{{ m.max_output_tokens or 0 }}"
                                          id="item-{{ m.id | replace('/', '-') | replace('.', '-') }}">
                                         <div class="model-checkbox-wrap">
-                                            <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+                                             <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
                                         </div>
                                         <div class="model-info">
                                             <div class="model-header-row">
@@ -729,6 +810,19 @@
                                                 <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
                                                 <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
+                                            {% if m.benchmarks and (m.benchmarks.get('coding') is not none or m.benchmarks.get('intelligence') is not none or m.benchmarks.get('agentic') is not none) %}
+                                            <div class="benchmark-badges">
+                                                {% if m.benchmarks.get('coding') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('coding') >= 70 %}score-high{% elif m.benchmarks.get('coding') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.get('coding')) }}</span>
+                                                {% endif %}
+                                                {% if m.benchmarks.get('intelligence') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('intelligence') >= 70 %}score-high{% elif m.benchmarks.get('intelligence') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.get('intelligence')) }}</span>
+                                                {% endif %}
+                                                {% if m.benchmarks.get('agentic') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('agentic') >= 70 %}score-high{% elif m.benchmarks.get('agentic') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.get('agentic')) }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
                                             <div class="capabilities">
                                                 {% if m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
                                                 {% if m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
@@ -1180,6 +1274,11 @@
             
             const maxInPrice = parseFloat(document.getElementById('maxInPrice').value) || Infinity;
             const maxOutPrice = parseFloat(document.getElementById('maxOutPrice').value) || Infinity;
+            const minCoding = parseFloat(document.getElementById('minCoding') ? document.getElementById('minCoding').value : 0) || 0;
+            const minIntel = parseFloat(document.getElementById('minIntel') ? document.getElementById('minIntel').value : 0) || 0;
+            const minAgentic = parseFloat(document.getElementById('minAgentic') ? document.getElementById('minAgentic').value : 0) || 0;
+            const includeUnrated = document.getElementById('includeUnrated') ? document.getElementById('includeUnrated').checked : false;
+            
             const imgIn = document.getElementById('capImageIn').checked;
             const imgOut = document.getElementById('capImageOut').checked;
             const audIn = document.getElementById('capAudioIn').checked;
@@ -1214,6 +1313,9 @@
                 const iTier = item.dataset.tier || 'moderate';
                 const iInPrice = parseFloat(item.dataset.inPrice);
                 const iOutPrice = parseFloat(item.dataset.outPrice);
+                const iCoding = item.dataset.coding !== undefined && item.dataset.coding !== '' ? parseFloat(item.dataset.coding) : null;
+                const iIntel = item.dataset.intel !== undefined && item.dataset.intel !== '' ? parseFloat(item.dataset.intel) : null;
+                const iAgentic = item.dataset.agentic !== undefined && item.dataset.agentic !== '' ? parseFloat(item.dataset.agentic) : null;
                 const iImgIn = item.dataset.imageIn === 'true';
                 const iImgOut = item.dataset.imageOut === 'true';
                 const iAudIn = item.dataset.audioIn === 'true';
@@ -1251,6 +1353,29 @@
                 if (visible && selectedTiers.size > 0 && !selectedTiers.has(iTier)) visible = false;
                 if (visible && iInPrice > maxInPrice) visible = false;
                 if (visible && iOutPrice > maxOutPrice) visible = false;
+                
+                if (visible && minCoding > 0) {
+                    if (iCoding !== null) {
+                        if (iCoding < minCoding) visible = false;
+                    } else if (!includeUnrated) {
+                        visible = false;
+                    }
+                }
+                if (visible && minIntel > 0) {
+                    if (iIntel !== null) {
+                        if (iIntel < minIntel) visible = false;
+                    } else if (!includeUnrated) {
+                        visible = false;
+                    }
+                }
+                if (visible && minAgentic > 0) {
+                    if (iAgentic !== null) {
+                        if (iAgentic < minAgentic) visible = false;
+                    } else if (!includeUnrated) {
+                        visible = false;
+                    }
+                }
+
                 if (visible && imgIn && !iImgIn) visible = false;
                 if (visible && imgOut && !iImgOut) visible = false;
                 if (visible && audIn && !iAudIn) visible = false;
@@ -1304,6 +1429,21 @@
                     
                     if (sortOrder === 'popularity') {
                         return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
+                    } else if (sortOrder === 'codingDesc') {
+                        const sA = a.dataset.coding !== undefined && a.dataset.coding !== '' ? parseFloat(a.dataset.coding) : -1;
+                        const sB = b.dataset.coding !== undefined && b.dataset.coding !== '' ? parseFloat(b.dataset.coding) : -1;
+                        if (sB !== sA) return sB - sA;
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                    } else if (sortOrder === 'intelDesc') {
+                        const sA = a.dataset.intel !== undefined && a.dataset.intel !== '' ? parseFloat(a.dataset.intel) : -1;
+                        const sB = b.dataset.intel !== undefined && b.dataset.intel !== '' ? parseFloat(b.dataset.intel) : -1;
+                        if (sB !== sA) return sB - sA;
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                    } else if (sortOrder === 'agenticDesc') {
+                        const sA = a.dataset.agentic !== undefined && a.dataset.agentic !== '' ? parseFloat(a.dataset.agentic) : -1;
+                        const sB = b.dataset.agentic !== undefined && b.dataset.agentic !== '' ? parseFloat(b.dataset.agentic) : -1;
+                        if (sB !== sA) return sB - sA;
+                        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
                     } else if (sortOrder === 'priceAsc') {
                         return parseFloat(a.dataset.price || 0) - parseFloat(b.dataset.price || 0);
                     } else if (sortOrder === 'priceDesc') {
