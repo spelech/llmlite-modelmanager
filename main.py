@@ -23,7 +23,7 @@ from app.database import (
 from app.notifications import send_notification
 from app.discovery import classify_model_tier, process_and_track_discovered_models
 from app.health import probe_model, check_active_models_health
-from app.capabilities import extract_capabilities, GEMINI_SPECS, FALLBACK_PRICING
+from app.capabilities import extract_capabilities, resolve_benchmarks_for_model, GEMINI_SPECS, FALLBACK_PRICING
 from app.config import (
     app_state,
     get_app_setting,
@@ -72,6 +72,8 @@ async def initial_load_models():
                             m["capabilities"] = extract_capabilities("", m["id"])
                         if "tier" not in m:
                             m["tier"] = classify_model_tier(m)
+                        if "benchmarks" not in m or not m["benchmarks"]:
+                            m["benchmarks"] = resolve_benchmarks_for_model(m["id"], app_state.get("or_models", []))
                     app_state["vx_models"] = models
                     app_state["last_verification_time"] = cache_data.get("timestamp", 0)
                     await process_and_track_discovered_models(app_state["or_models"] + models, notify=False)
