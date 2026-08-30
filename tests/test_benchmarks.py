@@ -20,10 +20,11 @@ def test_extract_benchmarks_valid():
     assert b["agentic"] == 58.2
 
 def test_extract_benchmarks_empty_or_malformed():
-    assert extract_benchmarks(None) == {}
-    assert extract_benchmarks({}) == {}
-    assert extract_benchmarks({"artificial_analysis": None}) == {}
-    assert extract_benchmarks({"artificial_analysis": {"coding_index": "invalid"}}) == {}
+    empty_expected = {"coding": None, "intelligence": None, "agentic": None}
+    assert extract_benchmarks(None) == empty_expected
+    assert extract_benchmarks({}) == empty_expected
+    assert extract_benchmarks({"artificial_analysis": None}) == empty_expected
+    assert extract_benchmarks({"artificial_analysis": {"coding_index": "invalid"}}) == empty_expected
 
 def test_resolve_benchmarks_for_model_cross_reference():
     or_models = [
