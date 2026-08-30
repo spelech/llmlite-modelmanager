@@ -134,14 +134,18 @@ def extract_benchmarks(benchmarks_data: Optional[Dict]) -> Dict[str, Optional[fl
     Extract normalized 0-100 benchmark scores (coding, intelligence, agentic)
     from OpenRouter benchmarks payload (e.g. Artificial Analysis indices).
     """
+    res = {
+        "coding": None,
+        "intelligence": None,
+        "agentic": None
+    }
     if not benchmarks_data or not isinstance(benchmarks_data, dict):
-        return {}
+        return res
     
     aa = benchmarks_data.get("artificial_analysis")
     if not aa or not isinstance(aa, dict):
-        return {}
+        return res
         
-    res = {}
     if aa.get("coding_index") is not None:
         try:
             res["coding"] = round(float(aa["coding_index"]), 1)
@@ -172,12 +176,24 @@ def resolve_benchmarks_for_model(model_id: str, or_models: Optional[List[Dict]] 
             if om_slug == base_slug or om_id == f"google/{base_slug}":
                 b = om.get("benchmarks", {})
                 if b and any(v is not None for v in b.values()):
-                    return b
+                    return {
+                        "coding": b.get("coding"),
+                        "intelligence": b.get("intelligence"),
+                        "agentic": b.get("agentic")
+                    }
 
     # Check fallback lookup
     for key, benchmarks in FALLBACK_GEMINI_BENCHMARKS.items():
         if key in base_slug or base_slug.startswith(key):
-            return benchmarks.copy()
+            return {
+                "coding": benchmarks.get("coding"),
+                "intelligence": benchmarks.get("intelligence"),
+                "agentic": benchmarks.get("agentic")
+            }
             
-    return {}
+    return {
+        "coding": None,
+        "intelligence": None,
+        "agentic": None
+    }
 

@@ -120,6 +120,7 @@
         .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.84em; cursor: pointer; color: var(--text-dim); font-weight: 500;}
         .checkbox-item:hover { color: var(--text-main); }
         input[type="checkbox"] { transform: scale(1.1); cursor: pointer; accent-color: var(--accent); }
+        input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent); background: transparent; margin: 0; }
 
         .brand-filter-list {
             display: flex;
@@ -714,16 +715,16 @@
                                                 <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
                                                 <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
-                                            {% if m.benchmarks and (m.benchmarks.coding is not none or m.benchmarks.intelligence is not none or m.benchmarks.agentic is not none) %}
+                                            {% if m.benchmarks and (m.benchmarks.get('coding') is not none or m.benchmarks.get('intelligence') is not none or m.benchmarks.get('agentic') is not none) %}
                                             <div class="benchmark-badges">
-                                                {% if m.benchmarks.coding is not none %}
-                                                <span class="score-chip {% if m.benchmarks.coding >= 70 %}score-high{% elif m.benchmarks.coding >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.coding) }}</span>
+                                                {% if m.benchmarks.get('coding') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('coding') >= 70 %}score-high{% elif m.benchmarks.get('coding') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.get('coding')) }}</span>
                                                 {% endif %}
-                                                {% if m.benchmarks.intelligence is not none %}
-                                                <span class="score-chip {% if m.benchmarks.intelligence >= 70 %}score-high{% elif m.benchmarks.intelligence >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.intelligence) }}</span>
+                                                {% if m.benchmarks.get('intelligence') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('intelligence') >= 70 %}score-high{% elif m.benchmarks.get('intelligence') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.get('intelligence')) }}</span>
                                                 {% endif %}
-                                                {% if m.benchmarks.agentic is not none %}
-                                                <span class="score-chip {% if m.benchmarks.agentic >= 70 %}score-high{% elif m.benchmarks.agentic >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.agentic) }}</span>
+                                                {% if m.benchmarks.get('agentic') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('agentic') >= 70 %}score-high{% elif m.benchmarks.get('agentic') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.get('agentic')) }}</span>
                                                 {% endif %}
                                             </div>
                                             {% endif %}
@@ -809,16 +810,16 @@
                                                 <span class="model-pricing">${{ "%.2f"|format(m.pricing.prompt_1m) }} / ${{ "%.2f"|format(m.pricing.completion_1m) }}</span>
                                                 <span class="model-specs">In: ? · Out: ?</span>
                                             </div>
-                                            {% if m.benchmarks and (m.benchmarks.coding is not none or m.benchmarks.intelligence is not none or m.benchmarks.agentic is not none) %}
+                                            {% if m.benchmarks and (m.benchmarks.get('coding') is not none or m.benchmarks.get('intelligence') is not none or m.benchmarks.get('agentic') is not none) %}
                                             <div class="benchmark-badges">
-                                                {% if m.benchmarks.coding is not none %}
-                                                <span class="score-chip {% if m.benchmarks.coding >= 70 %}score-high{% elif m.benchmarks.coding >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.coding) }}</span>
+                                                {% if m.benchmarks.get('coding') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('coding') >= 70 %}score-high{% elif m.benchmarks.get('coding') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.get('coding')) }}</span>
                                                 {% endif %}
-                                                {% if m.benchmarks.intelligence is not none %}
-                                                <span class="score-chip {% if m.benchmarks.intelligence >= 70 %}score-high{% elif m.benchmarks.intelligence >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.intelligence) }}</span>
+                                                {% if m.benchmarks.get('intelligence') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('intelligence') >= 70 %}score-high{% elif m.benchmarks.get('intelligence') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.get('intelligence')) }}</span>
                                                 {% endif %}
-                                                {% if m.benchmarks.agentic is not none %}
-                                                <span class="score-chip {% if m.benchmarks.agentic >= 70 %}score-high{% elif m.benchmarks.agentic >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.agentic) }}</span>
+                                                {% if m.benchmarks.get('agentic') is not none %}
+                                                <span class="score-chip {% if m.benchmarks.get('agentic') >= 70 %}score-high{% elif m.benchmarks.get('agentic') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.get('agentic')) }}</span>
                                                 {% endif %}
                                             </div>
                                             {% endif %}
