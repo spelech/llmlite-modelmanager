@@ -54,6 +54,45 @@ def test_index(mock_token, mock_get, mock_openrouter_resp, mock_google_billing_r
     response = client.get("/")
     assert response.status_code == 200
 
+def test_index_renders_local_models():
+    from app.config import app_state
+    app_state["local_models"] = [
+        {
+            "id": "local/qwen2.5-coder:7b",
+            "name": "qwen2.5-coder:7b",
+            "brand": "ollama",
+            "tier": "cheap",
+            "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
+            "max_input_tokens": 131072,
+            "max_output_tokens": 8192,
+            "capabilities": {
+                "text_in": True,
+                "text_out": True,
+                "image_in": False,
+                "image_out": False,
+                "audio_in": False,
+                "audio_out": False,
+                "video_in": False,
+                "video_out": False,
+                "pdf_in": False,
+                "function_calling": True,
+                "streaming": True
+            },
+            "benchmarks": {"coding": 72.4, "intelligence": 68.0, "agentic": 65.0}
+        }
+    ]
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert "Local / Ollama" in html
+    assert "local/qwen2.5-coder:7b" in html
+    assert "provider-local" in html
+    assert "LOCAL" in html
+    assert "LOCAL_LLM_URL" in html
+    assert "LOCAL_LLM_ENABLED" in html
+    assert "provLocal" in html
+
+
 @patch("httpx.AsyncClient.post")
 def test_test_model_success(mock_post):
     mock_resp = MagicMock()
