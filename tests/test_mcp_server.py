@@ -46,6 +46,18 @@ def setup_state():
                 "popularity": 10,
                 "pricing": {"prompt_1m": 1.25, "completion_1m": 3.75}
             }
+        ],
+        "local_models": [
+            {
+                "id": "local/qwen2.5-coder:32b",
+                "name": "qwen2.5-coder:32b",
+                "brand": "ollama",
+                "engine": "ollama",
+                "tier": "cheap",
+                "popularity": 3,
+                "pricing": {"prompt_1m": 0.0, "completion_1m": 0.0},
+                "benchmarks": {"coding": 88.4, "intelligence": 80.0, "agentic": 75.0}
+            }
         ]
     }
     set_app_state_ref(mock_state)
@@ -66,6 +78,18 @@ async def test_list_available_models_filter():
     deepseek = await list_available_models(search="deepseek")
     assert len(deepseek) == 1
     assert "deepseek" in deepseek[0]["id"]
+
+@pytest.mark.asyncio
+async def test_list_available_models_local_provider():
+    # Filter by provider='local'
+    local_models = await list_available_models(provider="local")
+    assert len(local_models) == 1
+    assert local_models[0]["id"] == "local/qwen2.5-coder:32b"
+
+    # Filter by provider='ollama'
+    ollama_models = await list_available_models(provider="ollama")
+    assert len(ollama_models) == 1
+    assert ollama_models[0]["id"] == "local/qwen2.5-coder:32b"
 
 @pytest.mark.asyncio
 async def test_get_trending_models():
