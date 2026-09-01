@@ -1,4 +1,5 @@
 import pytest
+import httpx
 from unittest.mock import patch, MagicMock, AsyncMock
 from app.health import probe_model, check_active_models_health
 
@@ -70,3 +71,107 @@ model_list:
         assert res["unhealthy"] == 1
         assert res["mode"] == "catalog"
         mock_notify.assert_called_once_with("vertex_ai/gemini-2.5-flash", "Model deprecated")
+
+@pytest.mark.asyncio
+async def test_probe_model_catalog_local_success():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "models": [
+            {"name": "qwen2.5-coder:7b", "model": "qwen2.5-coder:7b"}
+        ]
+    }
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_resp
+        res = await probe_model("local/qwen2.5-coder:7b", settings={"LOCAL_LLM_URL": "http://10.0.0.21:5246"}, mode="catalog")
+        assert res["healthy"] is True
+        assert res["response"] == "Catalog Active (qwen2.5-coder:7b) [0 Tokens]"
+        assert res["error"] is None
+
+@pytest.mark.asyncio
+async def test_probe_model_catalog_local_not_found():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "models": [
+            {"name": "llama3:8b", "model": "llama3:8b"}
+        ]
+    }
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_resp
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="catalog")
+        assert res["healthy"] is False
+        assert "not found" in res["error"].lower()
+
+@pytest.mark.asyncio
+async def test_probe_model_catalog_local_http_error():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 500
+    mock_resp.text = "Internal Server Error"
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_resp
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="catalog")
+        assert res["healthy"] is False
+        assert "500" in res["error"]
+
+@pytest.mark.asyncio
+async def test_probe_model_catalog_local_network_error():
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.side_effect = httpx.ConnectError("Connection refused")
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="catalog")
+        assert res["healthy"] is False
+        assert "Connection refused" in res["error"]
+
+@pytest.mark.asyncio
+async def test_probe_model_live_local_v1_success():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"choices": [{"message": {"content": "1"}}]}
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        res = await probe_model("local/qwen2.5-coder:7b", settings={"LOCAL_LLM_URL": "http://10.0.0.21:5246"}, mode="live")
+        assert res["healthy"] is True
+        assert res["response"] == "1"
+        assert res["error"] is None
+
+@pytest.mark.asyncio
+async def test_probe_model_live_local_fallback_api_chat_success():
+    mock_resp_404 = MagicMock()
+    mock_resp_404.status_code = 404
+    mock_resp_404.text = "Not Found"
+
+    mock_resp_200 = MagicMock()
+    mock_resp_200.status_code = 200
+    mock_resp_200.json.return_value = {"message": {"content": "1"}}
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = [mock_resp_404, mock_resp_200]
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="live")
+        assert res["healthy"] is True
+        assert res["response"] == "1"
+        assert res["error"] is None
+        assert mock_post.call_count == 2
+
+@pytest.mark.asyncio
+async def test_probe_model_live_local_failure():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 500
+    mock_resp.text = "Engine error"
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="live")
+        assert res["healthy"] is False
+        assert "500" in res["error"]
+
+@pytest.mark.asyncio
+async def test_probe_model_live_local_network_error():
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = httpx.ConnectError("Connection failed")
+        res = await probe_model("local/qwen2.5-coder:7b", settings={}, mode="live")
+        assert res["healthy"] is False
+        assert "Connection failed" in res["error"]
