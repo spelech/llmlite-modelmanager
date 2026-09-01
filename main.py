@@ -46,6 +46,7 @@ from app.vertex import (
     update_vertex_creds_file
 )
 from app.openrouter import get_openrouter_models
+from app.local_llm import verify_and_cache_local_models
 from app.sync import (
     export_opencode_config,
     export_librechat_config,
@@ -59,8 +60,9 @@ set_app_state_ref(app_state)
 templates = Jinja2Templates(directory="app/templates")
 
 async def initial_load_models():
-    """Load OpenRouter models and check cache for Vertex on startup."""
+    """Load OpenRouter models, local models, and check cache for Vertex on startup."""
     app_state["or_models"] = await get_openrouter_models()
+    await verify_and_cache_local_models()
     try:
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r") as f:
@@ -76,7 +78,7 @@ async def initial_load_models():
                             m["benchmarks"] = resolve_benchmarks_for_model(m["id"], app_state.get("or_models", []))
                     app_state["vx_models"] = models
                     app_state["last_verification_time"] = cache_data.get("timestamp", 0)
-                    await process_and_track_discovered_models(app_state["or_models"] + models, notify=False)
+                    await process_and_track_discovered_models(app_state["or_models"] + models + app_state["local_models"], notify=False)
                     return
     except Exception as e:
         print(f"Cache load error: {e}")
@@ -134,6 +136,7 @@ async def index(request: Request):
         context={
             "or_models": app_state["or_models"], 
             "vx_models": app_state["vx_models"],
+            "local_models": app_state.get("local_models", []),
             "version": APP_VERSION,
             "build_time": APP_BUILD_TIME
         }
@@ -155,6 +158,7 @@ async def force_refresh():
         except Exception:
             pass
     app_state["or_models"] = await get_openrouter_models()
+    await verify_and_cache_local_models()
     await verify_and_cache_vertex_models()
     return {"status": "success"}
 
@@ -225,7 +229,11 @@ async def sync_models_endpoint(request: Request):
 
 @app.get("/api/models")
 async def api_models():
-    return {"openrouter": app_state["or_models"], "vertex": app_state["vx_models"]}
+    return {
+        "openrouter": app_state["or_models"],
+        "vertex": app_state["vx_models"],
+        "local": app_state.get("local_models", [])
+    }
 
 @app.get("/api/models/discovered")
 async def api_discovered_models():

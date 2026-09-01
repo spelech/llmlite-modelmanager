@@ -82,6 +82,29 @@ def test_sync_models_minimal():
         assert response.json()["status"] == "success"
         assert response.json()["updated_models"] == 1
 
+def test_api_models():
+    from app.config import app_state
+    app_state["or_models"] = [{"id": "openrouter/a", "name": "A"}]
+    app_state["vx_models"] = [{"id": "vertex_ai/b", "name": "B"}]
+    app_state["local_models"] = [{"id": "local/c", "name": "C"}]
+    
+    response = client.get("/api/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert "openrouter" in data
+    assert "vertex" in data
+    assert "local" in data
+    assert len(data["local"]) == 1
+    assert data["local"][0]["id"] == "local/c"
+
+def test_force_refresh():
+    with patch("main.get_openrouter_models", return_value=[{"id": "openrouter/a"}]), \
+         patch("main.verify_and_cache_local_models", return_value=[{"id": "local/c"}]), \
+         patch("main.verify_and_cache_vertex_models", return_value=None):
+        response = client.post("/force-refresh")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
 def test_api_models_discovered():
     response = client.get("/api/models/discovered")
     assert response.status_code == 200
