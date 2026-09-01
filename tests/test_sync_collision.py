@@ -129,3 +129,36 @@ async def test_sync_local_models_and_collision_disambiguation(tmp_path):
         assert local_ds["litellm_params"]["api_base"] == "http://10.0.0.21:5246/v1"
         assert local_ds["model_info"]["max_input_tokens"] == 65536
 
+@pytest.mark.asyncio
+async def test_sync_removeprefix_local_handling(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("model_list: []")
+    
+    app_state["or_models"] = []
+    app_state["vx_models"] = []
+    app_state["local_models"] = [
+        {
+            "id": "local/qwen2.5-coder:7b",
+            "name": "qwen2.5-coder:7b",
+            "brand": "ollama",
+            "engine": "ollama",
+            "tier": "cheap",
+            "pricing": {"prompt": 0.0, "completion": 0.0},
+            "max_input_tokens": 131072,
+            "max_output_tokens": 8192,
+            "capabilities": {"text_in": True, "text_out": True}
+        }
+    ]
+    
+    with patch("app.sync.get_app_setting", side_effect=lambda key, default=None: str(config_file) if key == "LITELLM_CONFIG" else default), \
+         patch("app.sync.export_opencode_config", return_value=None):
+        res = await sync_models_internal(["local/qwen2.5-coder:7b"])
+        assert res["status"] == "success"
+        
+        saved_cfg = yaml.safe_load(config_file.read_text())
+        model = saved_cfg["model_list"][0]
+        assert model["model_name"] == "qwen2.5-coder:7b"
+        assert model["litellm_params"]["model"] == "ollama_chat/qwen2.5-coder:7b"
+        assert model["model_info"]["id"] == "local/qwen2.5-coder:7b"
+
+

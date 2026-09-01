@@ -206,9 +206,9 @@ async def add_model(model_id: str) -> Dict[str, any]:
     """
     active = await list_active_models()
     active_ids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in active
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     if model_id not in active_ids:
         active_ids.append(model_id)
@@ -222,9 +222,9 @@ async def remove_model(model_id: str) -> Dict[str, any]:
     """
     active = await list_active_models()
     active_ids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in active
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     if model_id in active_ids:
         active_ids.remove(model_id)

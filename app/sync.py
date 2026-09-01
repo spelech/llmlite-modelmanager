@@ -165,7 +165,7 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
             config = yaml.safe_load(f) or {}
     
     # Analyze base model names to detect collisions across providers
-    base_names = [mid.replace("local/", "") if mid.startswith("local/") else mid.split("/")[-1] for mid in selected_ids]
+    base_names = [mid.removeprefix("local/") if mid.startswith("local/") else mid.split("/")[-1] for mid in selected_ids]
     name_counts = Counter(base_names)
     
     new_model_list = []
@@ -173,7 +173,7 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
         if mid.startswith("local/"):
-            base_name = mid.replace("local/", "")
+            base_name = mid.removeprefix("local/")
         else:
             base_name = mid.split("/")[-1]
         

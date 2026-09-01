@@ -207,3 +207,45 @@ async def test_verify_litellm_healthy_direct_execution():
         healthy = await verify_litellm_healthy(timeout=0.1)
         assert healthy is False
 
+def test_get_config_returns_model_info_id():
+    mock_yaml = {
+        "model_list": [
+            {
+                "model_name": "qwen3.5:9b",
+                "litellm_params": {
+                    "model": "ollama_chat/qwen3.5:9b",
+                    "api_base": "http://10.0.0.21:5246"
+                },
+                "model_info": {
+                    "id": "local/qwen3.5:9b"
+                }
+            },
+            {
+                "model_name": "claude-3-5-sonnet",
+                "litellm_params": {
+                    "model": "openrouter/anthropic/claude-3-5-sonnet"
+                },
+                "model_info": {
+                    "id": "openrouter/anthropic/claude-3.5-sonnet"
+                }
+            },
+            {
+                "model_name": "legacy-model",
+                "litellm_params": {
+                    "model": "vertex_ai/gemini-2.5-flash"
+                }
+            }
+        ]
+    }
+    with patch("builtins.open", MagicMock()), \
+         patch("yaml.safe_load", return_value=mock_yaml):
+        response = client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "selected_ids" in data
+        assert data["selected_ids"] == [
+            "local/qwen3.5:9b",
+            "openrouter/anthropic/claude-3.5-sonnet",
+            "vertex_ai/gemini-2.5-flash"
+        ]
+

@@ -66,8 +66,8 @@ async def probe_model_catalog(model_id: str, settings: Dict[str, str]) -> Dict[s
                         "response": None
                     }
 
-        elif model_id.startswith("local/"):
-            short_id = model_id.replace("local/", "")
+        elif model_id.startswith(("local/", "ollama_chat/", "ollama/")):
+            short_id = model_id.split("/", 1)[-1]
             local_url = settings.get("LOCAL_LLM_URL", os.environ.get("LOCAL_LLM_URL", "http://10.0.0.21:5246")).rstrip("/")
             url = f"{local_url}/api/models"
             
@@ -173,8 +173,8 @@ async def probe_model_live(model_id: str, settings: Dict[str, str]) -> Dict[str,
                     err_msg = f"HTTP {resp.status_code}: {resp.text}"
                     return {"healthy": False, "latency_ms": round(latency, 2), "error": err_msg, "response": None}
 
-        elif model_id.startswith("local/"):
-            short_id = model_id.replace("local/", "")
+        elif model_id.startswith(("local/", "ollama_chat/", "ollama/")):
+            short_id = model_id.split("/", 1)[-1]
             local_url = settings.get("LOCAL_LLM_URL", os.environ.get("LOCAL_LLM_URL", "http://10.0.0.21:5246")).rstrip("/")
             v1_url = f"{local_url}/v1/chat/completions"
             v1_payload = {"model": short_id, "messages": [{"role": "user", "content": "1"}], "max_tokens": 1}
@@ -256,9 +256,9 @@ async def check_active_models_health(
 
     model_list = cfg.get("model_list", [])
     active_mids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in model_list
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     
     semaphore = asyncio.Semaphore(4)

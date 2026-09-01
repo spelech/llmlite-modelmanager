@@ -6,11 +6,10 @@ from typing import List, Dict, Any, Optional
 
 from app.config import (
     app_state,
-    get_app_setting,
-    CACHE_EXPIRY_DAYS
+    get_app_setting
 )
 from app.capabilities import extract_capabilities, resolve_benchmarks_for_model
-from app.discovery import classify_model_tier, process_and_track_discovered_models
+from app.discovery import process_and_track_discovered_models
 
 DEFAULT_LOCAL_LLM_URL = "http://10.0.0.21:5246"
 LOCAL_CACHE_FILE = "/app/config/local_models_cache.json"

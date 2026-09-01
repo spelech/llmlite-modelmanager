@@ -185,9 +185,9 @@ async def get_config():
             config = yaml.safe_load(f) or {}
             model_list = config.get("model_list", [])
             selected_ids = [
-                m.get("litellm_params", {}).get("model")
+                m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")
                 for m in model_list
-                if m.get("litellm_params", {}).get("model")
+                if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
             ]
             return {"selected_ids": selected_ids}
     except Exception as e:
