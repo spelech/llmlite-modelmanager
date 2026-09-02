@@ -1,0 +1,75 @@
+{% macro render_model_card(m, provider_name, provider_tag, provider_brand) %}
+{% set brand = provider_brand if provider_brand is defined and provider_brand is not none else (m.brand | default('google' if provider_name == 'vertex' else ('ollama' if provider_name == 'local' else 'other'))) %}
+{% set default_tier = 'cheap' if provider_name == 'local' else 'moderate' %}
+{% set tier = m.tier | default(default_tier) %}
+{% set in_price = m.pricing.prompt_1m if (m.pricing and m.pricing.prompt_1m is not none) else 0 %}
+{% set out_price = m.pricing.completion_1m if (m.pricing and m.pricing.completion_1m is not none) else 0 %}
+{% set total_price = in_price + out_price %}
+<div class="model-item" 
+     data-name="{{ m.name | lower }}" 
+     data-id="{{ m.id | lower }}"
+     data-brand="{{ brand | lower }}"
+     data-provider="{{ provider_name }}"
+     data-tier="{{ tier }}"
+     data-popularity="{{ m.popularity | default(9999) }}"
+     data-price="{{ total_price }}"
+     data-in-price="{{ in_price }}"
+     data-out-price="{{ out_price }}"
+     data-coding="{{ m.benchmarks.coding if m.benchmarks and m.benchmarks.coding is not none else '' }}"
+     data-intel="{{ m.benchmarks.intelligence if m.benchmarks and m.benchmarks.intelligence is not none else '' }}"
+     data-agentic="{{ m.benchmarks.agentic if m.benchmarks and m.benchmarks.agentic is not none else '' }}"
+     data-image-in="{{ 'true' if m.capabilities and m.capabilities.image_in else 'false' }}"
+     data-image-out="{{ 'true' if m.capabilities and m.capabilities.image_out else 'false' }}"
+     data-audio-in="{{ 'true' if m.capabilities and m.capabilities.audio_in else 'false' }}"
+     data-audio-out="{{ 'true' if m.capabilities and m.capabilities.audio_out else 'false' }}"
+     data-func="{{ 'true' if m.capabilities and m.capabilities.function_calling else 'false' }}"
+     data-max-input="{{ m.max_input_tokens or 0 }}"
+     data-max-output="{{ m.max_output_tokens or 0 }}"
+     id="item-{{ m.id | replace('/', '-') | replace('.', '-') | replace(':', '-') }}">
+    <div class="model-checkbox-wrap">
+         <input type="checkbox" name="models" value="{{ m.id }}" onchange="handleModelToggle(this)">
+    </div>
+    <div class="model-info">
+        <div class="model-header-row">
+            <div class="model-title-wrap">
+                <span class="model-tier tier-{{ tier }}">{{ tier | upper if provider_name == 'local' else tier }}</span>
+                <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
+                <span class="model-brand">{{ brand }}</span>
+                <span class="provider-tag provider-{{ provider_name }}">{{ provider_tag }}</span>
+            </div>
+            <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
+        </div>
+        <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
+        <div class="model-meta-row">
+            {% if provider_name == 'local' and total_price == 0 %}
+            <span class="model-pricing" style="color: var(--success);">$0.00 / 1M · Free</span>
+            {% else %}
+            <span class="model-pricing">${{ "%.2f"|format(in_price) }} / ${{ "%.2f"|format(out_price) }}</span>
+            {% endif %}
+            <span class="model-specs">In: ? · Out: ?</span>
+        </div>
+        {% if m.benchmarks and (m.benchmarks.get('coding') is not none or m.benchmarks.get('intelligence') is not none or m.benchmarks.get('agentic') is not none) %}
+        <div class="benchmark-badges">
+            {% if m.benchmarks.get('coding') is not none %}
+            <span class="score-chip {% if m.benchmarks.get('coding') >= 70 %}score-high{% elif m.benchmarks.get('coding') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Coding Benchmark Index (Artificial Analysis)">💻 Code {{ "%.1f"|format(m.benchmarks.get('coding')) }}</span>
+            {% endif %}
+            {% if m.benchmarks.get('intelligence') is not none %}
+            <span class="score-chip {% if m.benchmarks.get('intelligence') >= 70 %}score-high{% elif m.benchmarks.get('intelligence') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Intelligence Benchmark Index (Artificial Analysis)">🧠 Intel {{ "%.1f"|format(m.benchmarks.get('intelligence')) }}</span>
+            {% endif %}
+            {% if m.benchmarks.get('agentic') is not none %}
+            <span class="score-chip {% if m.benchmarks.get('agentic') >= 70 %}score-high{% elif m.benchmarks.get('agentic') >= 50 %}score-mid{% else %}score-low{% endif %}" title="Agentic Benchmark Index (Artificial Analysis)">🤖 Agent {{ "%.1f"|format(m.benchmarks.get('agentic')) }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="capabilities">
+            {% if m.capabilities and m.capabilities.image_in %}<span class="cap-tag active">Vision In</span>{% endif %}
+            {% if m.capabilities and m.capabilities.image_out %}<span class="cap-tag active">Vision Out</span>{% endif %}
+            {% if m.capabilities and m.capabilities.audio_in %}<span class="cap-tag active">Audio In</span>{% endif %}
+            {% if m.capabilities and m.capabilities.audio_out %}<span class="cap-tag active">Audio Out</span>{% endif %}
+            {% if m.capabilities and m.capabilities.video_in %}<span class="cap-tag active">Video In</span>{% endif %}
+            {% if m.capabilities and m.capabilities.pdf_in %}<span class="cap-tag active">PDF</span>{% endif %}
+            {% if m.capabilities and m.capabilities.function_calling %}<span class="cap-tag active">Function</span>{% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
