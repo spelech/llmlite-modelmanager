@@ -129,6 +129,10 @@ app.add_middleware(
 app.mount("/mcp", mcp.http_app(transport="http"))
 app.mount("/sse", mcp.http_app(transport="sse"))
 
+static_dir = os.path.join(os.path.dirname(__file__), "app", "static")
+if os.path.isdir(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(

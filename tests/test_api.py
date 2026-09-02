@@ -53,6 +53,8 @@ def test_index(mock_token, mock_get, mock_openrouter_resp, mock_google_billing_r
     
     response = client.get("/")
     assert response.status_code == 200
+    assert "/static/css/main.css" in response.text
+    assert "/static/js/app.js" in response.text
 
 def test_index_renders_local_models():
     from app.config import app_state
@@ -248,4 +250,20 @@ def test_get_config_returns_model_info_id():
             "openrouter/anthropic/claude-3.5-sonnet",
             "vertex_ai/gemini-2.5-flash"
         ]
+
+def test_static_css_main():
+    response = client.get("/static/css/main.css")
+    assert response.status_code == 200
+
+def test_static_js_app():
+    response = client.get("/static/js/app.js")
+    assert response.status_code == 200
+
+def test_static_css_variables():
+    response = client.get("/static/css/variables.css")
+    assert response.status_code == 200
+
+def test_static_js_columns():
+    response = client.get("/static/js/columns.js")
+    assert response.status_code == 200
 
