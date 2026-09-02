@@ -136,3 +136,64 @@ def test_export_librechat_config_no_litellm_endpoint(tmp_path):
     assert len(res["synced"]) == 0
     assert len(res["skipped"]) == 1
     assert res["skipped"][0]["reason"] == "litellm_endpoint_not_found"
+
+
+def test_export_librechat_config_local_models(tmp_path):
+    target_file = tmp_path / "librechat.yaml"
+    initial_config = {
+        "version": "1.3.13",
+        "endpoints": {
+            "custom": [
+                {
+                    "name": "LiteLLM",
+                    "baseURL": "http://litellm:4000/v1"
+                }
+            ]
+        }
+    }
+    with open(target_file, "w") as f:
+        yaml.safe_dump(initial_config, f)
+
+    mock_models = [
+        {
+            "model_name": "qwen3.5:9b",
+            "model_info": {
+                "id": "local/qwen3.5:9b",
+                "max_input_tokens": 32768,
+                "input_cost_per_token": 0.0,
+                "output_cost_per_token": 0.0,
+                "tier": "cheap"
+            }
+        },
+        {
+            "model_name": "local/llama3:8b",
+            "model_info": {
+                "id": "local/llama3:8b",
+                "max_input_tokens": 131072,
+                "input_cost_per_token": 0.0,
+                "output_cost_per_token": 0.0,
+                "tier": "cheap"
+            }
+        }
+    ]
+
+    res = export_librechat_config(mock_models, target_paths=[str(target_file)])
+    assert res["status"] == "success"
+
+    with open(target_file, "r") as f:
+        updated = yaml.safe_load(f)
+
+    litellm_ep = updated["endpoints"]["custom"][0]
+    token_cfg = litellm_ep["tokenConfig"]
+
+    assert token_cfg["qwen3.5:9b"] == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "context": 32768
+    }
+    assert token_cfg["local/llama3:8b"] == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "context": 131072
+    }
+

@@ -53,6 +53,47 @@ def test_index(mock_token, mock_get, mock_openrouter_resp, mock_google_billing_r
     
     response = client.get("/")
     assert response.status_code == 200
+    assert "/static/css/main.css" in response.text
+    assert "/static/js/app.js" in response.text
+
+def test_index_renders_local_models():
+    from app.config import app_state
+    app_state["local_models"] = [
+        {
+            "id": "local/qwen2.5-coder:7b",
+            "name": "qwen2.5-coder:7b",
+            "brand": "ollama",
+            "tier": "cheap",
+            "pricing": {"prompt": 0.0, "completion": 0.0, "prompt_1m": 0.0, "completion_1m": 0.0},
+            "max_input_tokens": 131072,
+            "max_output_tokens": 8192,
+            "capabilities": {
+                "text_in": True,
+                "text_out": True,
+                "image_in": False,
+                "image_out": False,
+                "audio_in": False,
+                "audio_out": False,
+                "video_in": False,
+                "video_out": False,
+                "pdf_in": False,
+                "function_calling": True,
+                "streaming": True
+            },
+            "benchmarks": {"coding": 72.4, "intelligence": 68.0, "agentic": 65.0}
+        }
+    ]
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert "Local / Ollama" in html
+    assert "local/qwen2.5-coder:7b" in html
+    assert "provider-local" in html
+    assert "LOCAL" in html
+    assert "LOCAL_LLM_URL" in html
+    assert "LOCAL_LLM_ENABLED" in html
+    assert "provLocal" in html
+
 
 @patch("httpx.AsyncClient.post")
 def test_test_model_success(mock_post):
@@ -81,6 +122,29 @@ def test_sync_models_minimal():
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert response.json()["updated_models"] == 1
+
+def test_api_models():
+    from app.config import app_state
+    app_state["or_models"] = [{"id": "openrouter/a", "name": "A"}]
+    app_state["vx_models"] = [{"id": "vertex_ai/b", "name": "B"}]
+    app_state["local_models"] = [{"id": "local/c", "name": "C"}]
+    
+    response = client.get("/api/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert "openrouter" in data
+    assert "vertex" in data
+    assert "local" in data
+    assert len(data["local"]) == 1
+    assert data["local"][0]["id"] == "local/c"
+
+def test_force_refresh():
+    with patch("main.get_openrouter_models", return_value=[{"id": "openrouter/a"}]), \
+         patch("main.verify_and_cache_local_models", return_value=[{"id": "local/c"}]), \
+         patch("main.verify_and_cache_vertex_models", return_value=None):
+        response = client.post("/force-refresh")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
 
 def test_api_models_discovered():
     response = client.get("/api/models/discovered")
@@ -144,4 +208,62 @@ async def test_verify_litellm_healthy_direct_execution():
     with patch("httpx.AsyncClient.get", side_effect=Exception("Connection refused")):
         healthy = await verify_litellm_healthy(timeout=0.1)
         assert healthy is False
+
+def test_get_config_returns_model_info_id():
+    mock_yaml = {
+        "model_list": [
+            {
+                "model_name": "qwen3.5:9b",
+                "litellm_params": {
+                    "model": "ollama_chat/qwen3.5:9b",
+                    "api_base": "http://10.0.0.21:5246"
+                },
+                "model_info": {
+                    "id": "local/qwen3.5:9b"
+                }
+            },
+            {
+                "model_name": "claude-3-5-sonnet",
+                "litellm_params": {
+                    "model": "openrouter/anthropic/claude-3-5-sonnet"
+                },
+                "model_info": {
+                    "id": "openrouter/anthropic/claude-3.5-sonnet"
+                }
+            },
+            {
+                "model_name": "legacy-model",
+                "litellm_params": {
+                    "model": "vertex_ai/gemini-2.5-flash"
+                }
+            }
+        ]
+    }
+    with patch("builtins.open", MagicMock()), \
+         patch("yaml.safe_load", return_value=mock_yaml):
+        response = client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "selected_ids" in data
+        assert data["selected_ids"] == [
+            "local/qwen3.5:9b",
+            "openrouter/anthropic/claude-3.5-sonnet",
+            "vertex_ai/gemini-2.5-flash"
+        ]
+
+def test_static_css_main():
+    response = client.get("/static/css/main.css")
+    assert response.status_code == 200
+
+def test_static_js_app():
+    response = client.get("/static/js/app.js")
+    assert response.status_code == 200
+
+def test_static_css_variables():
+    response = client.get("/static/css/variables.css")
+    assert response.status_code == 200
+
+def test_static_js_columns():
+    response = client.get("/static/js/columns.js")
+    assert response.status_code == 200
 

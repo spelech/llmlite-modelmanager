@@ -30,6 +30,7 @@ APP_BUILD_TIME = os.environ.get("APP_BUILD_TIME", "unknown")
 app_state: Dict[str, Any] = {
     "or_models": [],
     "vx_models": [],
+    "local_models": [],
     "last_verification_time": 0,
     "settings": {}  # Loaded from DB on startup
 }

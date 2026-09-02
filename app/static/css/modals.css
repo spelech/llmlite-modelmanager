@@ -1,0 +1,51 @@
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    backdrop-filter: blur(5px);
+}
+.modal-content {
+    background-color: var(--bg-card);
+    margin: 4% auto;
+    padding: 22px;
+    width: 580px;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border: 1px solid var(--border);
+}
+.modal-content h2 { margin: 0; font-size: 1.15em; color: var(--text-main); font-weight: 600; }
+.settings-grid { display: flex; flex-direction: column; gap: 10px; }
+
+/* Masked JSON view */
+.masked-json {
+    -webkit-text-security: disc;
+    filter: blur(4px);
+    transition: filter 0.2s ease;
+    user-select: none;
+}
+.masked-json.revealed {
+    -webkit-text-security: none;
+    filter: none;
+    user-select: text;
+}
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+.verifying { animation: pulse 2s infinite; color: var(--warning); }
+
+.empty-section-message {
+    grid-column: 1 / -1;
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.82em;
+    font-style: italic;
+}

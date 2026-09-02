@@ -46,6 +46,18 @@ def setup_state():
                 "popularity": 10,
                 "pricing": {"prompt_1m": 1.25, "completion_1m": 3.75}
             }
+        ],
+        "local_models": [
+            {
+                "id": "local/qwen2.5-coder:32b",
+                "name": "qwen2.5-coder:32b",
+                "brand": "ollama",
+                "engine": "ollama",
+                "tier": "cheap",
+                "popularity": 3,
+                "pricing": {"prompt_1m": 0.0, "completion_1m": 0.0},
+                "benchmarks": {"coding": 88.4, "intelligence": 80.0, "agentic": 75.0}
+            }
         ]
     }
     set_app_state_ref(mock_state)
@@ -66,6 +78,18 @@ async def test_list_available_models_filter():
     deepseek = await list_available_models(search="deepseek")
     assert len(deepseek) == 1
     assert "deepseek" in deepseek[0]["id"]
+
+@pytest.mark.asyncio
+async def test_list_available_models_local_provider():
+    # Filter by provider='local'
+    local_models = await list_available_models(provider="local")
+    assert len(local_models) == 1
+    assert local_models[0]["id"] == "local/qwen2.5-coder:32b"
+
+    # Filter by provider='ollama'
+    ollama_models = await list_available_models(provider="ollama")
+    assert len(ollama_models) == 1
+    assert ollama_models[0]["id"] == "local/qwen2.5-coder:32b"
 
 @pytest.mark.asyncio
 async def test_get_trending_models():
@@ -138,3 +162,36 @@ async def test_sync_librechat_tool():
         res = await sync_librechat()
         assert res["status"] == "success"
         mock_export.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_add_and_remove_local_models_preserves_id():
+    with patch("app.mcp_server.list_active_models", new_callable=AsyncMock) as mock_active, \
+         patch("app.mcp_server.sync_models", new_callable=AsyncMock) as mock_sync:
+        
+        # Initial active model list contains a local model with model_info.id and ollama_chat litellm_params
+        mock_active.return_value = [
+            {
+                "model_name": "qwen3.5:9b",
+                "litellm_params": {"model": "ollama_chat/qwen3.5:9b"},
+                "model_info": {"id": "local/qwen3.5:9b"}
+            }
+        ]
+        mock_sync.return_value = {"status": "success", "updated_models": 2}
+        
+        # Test adding another model preserves local/qwen3.5:9b without corruption
+        res = await add_model("openrouter/deepseek/deepseek-chat")
+        assert res["status"] == "success"
+        mock_sync.assert_called_once_with(["local/qwen3.5:9b", "openrouter/deepseek/deepseek-chat"])
+        
+        # Test adding already present local model
+        res_dup = await add_model("local/qwen3.5:9b")
+        assert res_dup["status"] == "already_present"
+        assert res_dup["model_id"] == "local/qwen3.5:9b"
+        
+        # Test removing local model using local/qwen3.5:9b
+        mock_sync.reset_mock()
+        mock_sync.return_value = {"status": "success", "updated_models": 0}
+        res_remove = await remove_model("local/qwen3.5:9b")
+        assert res_remove["status"] == "success"
+        mock_sync.assert_called_once_with([])
+

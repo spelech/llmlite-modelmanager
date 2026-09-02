@@ -28,7 +28,11 @@ def set_app_state_ref(state: Dict):
 
 def get_current_models_list() -> List[Dict]:
     if _app_state_ref:
-        return _app_state_ref.get("or_models", []) + _app_state_ref.get("vx_models", [])
+        return (
+            _app_state_ref.get("or_models", [])
+            + _app_state_ref.get("vx_models", [])
+            + _app_state_ref.get("local_models", [])
+        )
     return []
 
 @mcp.tool
@@ -60,12 +64,12 @@ async def list_available_models(
     min_agentic_score: Optional[float] = None
 ) -> List[Dict]:
     """
-    Query available models from OpenRouter and Vertex AI with filters.
+    Query available models from OpenRouter, Vertex AI, and Local LLM (L³M²/Ollama) with filters.
     
-    :param provider: Filter by provider ('openrouter' or 'vertex_ai').
+    :param provider: Filter by provider ('openrouter', 'vertex_ai', 'local', or 'ollama').
     :param tier: Filter by pricing tier ('cheap', 'moderate', or 'frontier').
     :param search: Keyword search in model ID or name.
-    :param brand: Filter by model creator/brand (e.g. 'google', 'anthropic', 'openai', 'deepseek', 'meta-llama').
+    :param brand: Filter by model creator/brand (e.g. 'google', 'anthropic', 'openai', 'deepseek', 'meta-llama', 'ollama').
     :param min_coding_score: Minimum coding benchmark score (0-100).
     :param min_intelligence_score: Minimum intelligence benchmark score (0-100).
     :param min_agentic_score: Minimum agentic benchmark score (0-100).
@@ -80,8 +84,13 @@ async def list_available_models(
         m_provider = mid.split("/")[0] if "/" in mid else "unknown"
         benchmarks = m.get("benchmarks", {})
         
-        if provider and m_provider.lower() != provider.lower():
-            continue
+        if provider:
+            p_low = provider.lower()
+            if p_low in ["local", "ollama"]:
+                if not (mid.startswith("local/") or m_provider.lower() in ["local", "ollama"]):
+                    continue
+            elif m_provider.lower() != p_low:
+                continue
         if tier and m_tier.lower() != tier.lower():
             continue
         if brand and brand.lower() not in m_brand:
@@ -197,9 +206,9 @@ async def add_model(model_id: str) -> Dict[str, any]:
     """
     active = await list_active_models()
     active_ids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in active
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     if model_id not in active_ids:
         active_ids.append(model_id)
@@ -213,9 +222,9 @@ async def remove_model(model_id: str) -> Dict[str, any]:
     """
     active = await list_active_models()
     active_ids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in active
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     if model_id in active_ids:
         active_ids.remove(model_id)

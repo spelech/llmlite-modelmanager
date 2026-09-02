@@ -1,0 +1,99 @@
+<div class="sidebar">
+    <h2>Filters</h2>
+    
+    <div class="filter-group">
+        <span class="filter-label">Sort By</span>
+        <select id="sortOrder" onchange="applyAllFilters()" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
+            <option value="popularity">Popularity (Most Popular)</option>
+            <option value="codingDesc">💻 Coding Score (High to Low)</option>
+            <option value="intelDesc">🧠 Intelligence Score (High to Low)</option>
+            <option value="agenticDesc">🤖 Agentic Score (High to Low)</option>
+            <option value="priceAsc">Price (Low to High)</option>
+            <option value="priceDesc">Price (High to Low)</option>
+            <option value="name">Name (A-Z)</option>
+            <option value="brand">Brand (A-Z)</option>
+        </select>
+    </div>
+    
+    <div class="filter-group">
+        <span class="filter-label">Providers</span>
+        <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" id="provOpenRouter" value="openrouter" checked onchange="applyAllFilters()"> OpenRouter</label>
+            <label class="checkbox-item"><input type="checkbox" id="provVertex" value="vertex" checked onchange="applyAllFilters()"> Vertex AI</label>
+            <label class="checkbox-item"><input type="checkbox" id="provLocal" value="local" checked onchange="applyAllFilters()"> Local / Ollama</label>
+        </div>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Wildcard Search</span>
+        <input type="text" id="globalSearch" placeholder="e.g. gemini*flash" onkeyup="applyAllFilters()">
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Benchmarks (Min Score)</span>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                    <span>💻 Min Coding</span>
+                    <span id="minCodingVal" style="font-weight: 700; color: var(--accent);">0</span>
+                </div>
+                <input type="range" id="minCoding" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minCodingVal').innerText = this.value; applyAllFilters()">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                    <span>🧠 Min Intelligence</span>
+                    <span id="minIntelVal" style="font-weight: 700; color: var(--accent);">0</span>
+                </div>
+                <input type="range" id="minIntel" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minIntelVal').innerText = this.value; applyAllFilters()">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.76em; color: var(--text-dim); margin-bottom: 2px;">
+                    <span>🤖 Min Agentic</span>
+                    <span id="minAgenticVal" style="font-weight: 700; color: var(--accent);">0</span>
+                </div>
+                <input type="range" id="minAgentic" min="0" max="100" value="0" step="5" style="width: 100%; accent-color: var(--accent);" oninput="document.getElementById('minAgenticVal').innerText = this.value; applyAllFilters()">
+            </div>
+            <label class="checkbox-item" style="margin-top: 2px;">
+                <input type="checkbox" id="includeUnrated" onchange="applyAllFilters()"> Include Unrated
+            </label>
+        </div>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Brands</span>
+        <div id="brandFilterList" class="brand-filter-list">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Max In Price (1M)</span>
+        <input type="number" id="maxInPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Max Out Price (1M)</span>
+        <input type="number" id="maxOutPrice" step="0.1" placeholder="Any" onchange="applyAllFilters()">
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Model Tier</span>
+        <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" id="tierFrontier" value="frontier" onchange="applyAllFilters()"> 🔥 Frontier</label>
+            <label class="checkbox-item"><input type="checkbox" id="tierModerate" value="moderate" onchange="applyAllFilters()"> ⚡ Moderate</label>
+            <label class="checkbox-item"><input type="checkbox" id="tierCheap" value="cheap" onchange="applyAllFilters()"> 💡 Cheap</label>
+        </div>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Capabilities</span>
+        <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" id="capImageIn" onchange="applyAllFilters()"> Vision In</label>
+            <label class="checkbox-item"><input type="checkbox" id="capImageOut" onchange="applyAllFilters()"> Vision Out</label>
+            <label class="checkbox-item"><input type="checkbox" id="capAudioIn" onchange="applyAllFilters()"> Audio In</label>
+            <label class="checkbox-item"><input type="checkbox" id="capAudioOut" onchange="applyAllFilters()"> Audio Out</label>
+            <label class="checkbox-item"><input type="checkbox" id="capFunc" onchange="applyAllFilters()"> Function</label>
+            <label class="checkbox-item"><input type="checkbox" id="filterSelected" onchange="applyAllFilters()"> Selected</label>
+        </div>
+    </div>
+</div>

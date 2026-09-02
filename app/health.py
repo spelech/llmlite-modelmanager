@@ -65,6 +65,49 @@ async def probe_model_catalog(model_id: str, settings: Dict[str, str]) -> Dict[s
                         "error": f"OpenRouter Catalog HTTP {resp.status_code}: {resp.text}",
                         "response": None
                     }
+
+        elif model_id.startswith(("local/", "ollama_chat/", "ollama/")):
+            short_id = model_id.split("/", 1)[-1]
+            local_url = settings.get("LOCAL_LLM_URL", os.environ.get("LOCAL_LLM_URL", "http://10.0.0.21:5246")).rstrip("/")
+            url = f"{local_url}/api/models"
+            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url)
+                latency = (time.time() - start_time) * 1000
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models_list = data.get("models", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+                    found = any(
+                        isinstance(m, dict) and (
+                            m.get("name") == short_id
+                            or m.get("model") == short_id
+                            or m.get("id") == short_id
+                            or m.get("id") == model_id
+                            or m.get("name") == model_id
+                        )
+                        for m in models_list
+                    )
+                    if found:
+                        return {
+                            "healthy": True,
+                            "latency_ms": round(latency, 2),
+                            "response": f"Catalog Active ({short_id}) [0 Tokens]",
+                            "error": None
+                        }
+                    else:
+                        return {
+                            "healthy": False,
+                            "latency_ms": round(latency, 2),
+                            "error": f"Model {short_id} not found in local catalog",
+                            "response": None
+                        }
+                else:
+                    return {
+                        "healthy": False,
+                        "latency_ms": round(latency, 2),
+                        "error": f"Local LLM Catalog HTTP {resp.status_code}: {resp.text}",
+                        "response": None
+                    }
                     
         return {"healthy": False, "latency_ms": 0, "error": f"Unsupported provider: {model_id}"}
     except Exception as e:
@@ -129,6 +172,44 @@ async def probe_model_live(model_id: str, settings: Dict[str, str]) -> Dict[str,
                 else:
                     err_msg = f"HTTP {resp.status_code}: {resp.text}"
                     return {"healthy": False, "latency_ms": round(latency, 2), "error": err_msg, "response": None}
+
+        elif model_id.startswith(("local/", "ollama_chat/", "ollama/")):
+            short_id = model_id.split("/", 1)[-1]
+            local_url = settings.get("LOCAL_LLM_URL", os.environ.get("LOCAL_LLM_URL", "http://10.0.0.21:5246")).rstrip("/")
+            v1_url = f"{local_url}/v1/chat/completions"
+            v1_payload = {"model": short_id, "messages": [{"role": "user", "content": "1"}], "max_tokens": 1}
+            
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(v1_url, json=v1_payload)
+                if resp.status_code == 200:
+                    latency = (time.time() - start_time) * 1000
+                    res_json = resp.json()
+                    res_text = res_json.get("choices", [{}])[0].get("message", {}).get("content", "OK")
+                    return {"healthy": True, "latency_ms": round(latency, 2), "response": str(res_text), "error": None}
+                elif resp.status_code == 404:
+                    api_url = f"{local_url}/api/chat"
+                    api_payload = {"model": short_id, "messages": [{"role": "user", "content": "1"}], "stream": False}
+                    fallback_resp = await client.post(api_url, json=api_payload)
+                    latency = (time.time() - start_time) * 1000
+                    if fallback_resp.status_code == 200:
+                        fb_json = fallback_resp.json()
+                        fb_text = fb_json.get("message", {}).get("content", "OK")
+                        return {"healthy": True, "latency_ms": round(latency, 2), "response": str(fb_text), "error": None}
+                    else:
+                        return {
+                            "healthy": False,
+                            "latency_ms": round(latency, 2),
+                            "error": f"Local LLM HTTP {fallback_resp.status_code}: {fallback_resp.text}",
+                            "response": None
+                        }
+                else:
+                    latency = (time.time() - start_time) * 1000
+                    return {
+                        "healthy": False,
+                        "latency_ms": round(latency, 2),
+                        "error": f"Local LLM HTTP {resp.status_code}: {resp.text}",
+                        "response": None
+                    }
                     
         return {"healthy": False, "latency_ms": 0, "error": f"Unsupported provider: {model_id}"}
     except Exception as e:
@@ -175,9 +256,9 @@ async def check_active_models_health(
 
     model_list = cfg.get("model_list", [])
     active_mids = [
-        m.get("litellm_params", {}).get("model")
+        (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model"))
         for m in model_list
-        if m.get("litellm_params", {}).get("model") and "*" not in m.get("model_name", "")
+        if (m.get("model_info", {}).get("id") or m.get("litellm_params", {}).get("model")) and "*" not in m.get("model_name", "")
     ]
     
     semaphore = asyncio.Semaphore(4)

@@ -150,7 +150,7 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
     Core logic to sync selected models into LiteLLM config, OpenCode config, and LibreChat config
     with automatic duplicate collision prevention and safety backup.
     """
-    all_models = app_state.get("or_models", []) + app_state.get("vx_models", [])
+    all_models = app_state.get("or_models", []) + app_state.get("vx_models", []) + app_state.get("local_models", [])
     model_map = {m["id"]: m for m in all_models}
     
     config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
@@ -165,14 +165,17 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
             config = yaml.safe_load(f) or {}
     
     # Analyze base model names to detect collisions across providers
-    base_names = [mid.split("/")[-1] for mid in selected_ids]
+    base_names = [mid.removeprefix("local/") if mid.startswith("local/") else mid.split("/")[-1] for mid in selected_ids]
     name_counts = Counter(base_names)
     
     new_model_list = []
     for mid in selected_ids:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
-        base_name = mid.split("/")[-1]
+        if mid.startswith("local/"):
+            base_name = mid.removeprefix("local/")
+        else:
+            base_name = mid.split("/")[-1]
         
         # Disambiguate model_name if duplicate base names exist across providers
         if name_counts[base_name] > 1:
@@ -180,38 +183,70 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                 model_name = f"vertex/{base_name}"
             elif mid.startswith("openrouter/"):
                 model_name = f"openrouter/{base_name}"
+            elif mid.startswith("local/"):
+                model_name = f"local/{base_name}"
             else:
                 model_name = mid
         else:
             model_name = base_name
         
-        entry = {
-            "model_name": model_name,
-            "litellm_params": {"model": mid},
-            "model_info": {
-                "id": mid,
-                "input_cost_per_token": pricing.get("prompt", 0),
-                "output_cost_per_token": pricing.get("completion", 0),
-                "max_input_tokens": m_data.get("max_input_tokens", 0),
-                "max_output_tokens": m_data.get("max_output_tokens", 0),
-                "capabilities": m_data.get("capabilities", {}),
-                "benchmarks": m_data.get("benchmarks", {}),
-                "brand": m_data.get("brand", "other"),
-                "tier": m_data.get("tier", "moderate")
+        if mid.startswith("local/"):
+            local_url = get_app_setting("LOCAL_LLM_URL", "http://10.0.0.21:5246")
+            engine = m_data.get("engine", "ollama")
+            if engine in ("vllm", "openai"):
+                litellm_params = {
+                    "model": f"openai/{base_name}",
+                    "api_base": f"{local_url.rstrip('/')}/v1"
+                }
+            else:
+                litellm_params = {
+                    "model": f"ollama_chat/{base_name}",
+                    "api_base": local_url
+                }
+
+            entry = {
+                "model_name": model_name,
+                "litellm_params": litellm_params,
+                "model_info": {
+                    "id": mid,
+                    "input_cost_per_token": 0.0,
+                    "output_cost_per_token": 0.0,
+                    "max_input_tokens": m_data.get("max_input_tokens", 0),
+                    "max_output_tokens": m_data.get("max_output_tokens", 0),
+                    "capabilities": m_data.get("capabilities", {}),
+                    "benchmarks": m_data.get("benchmarks", {}),
+                    "brand": m_data.get("brand", "ollama"),
+                    "tier": "cheap"
+                }
             }
-        }
-        
-        if mid.startswith("openrouter/"):
-            entry["litellm_params"]["api_key"] = get_app_setting("OPENROUTER_API_KEY")
-        elif mid.startswith("vertex_ai/"):
-            vertex_creds = get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS)
-            entry["litellm_params"].update({
-                "vertex_project": get_app_setting("VERTEX_PROJECT"),
-                "vertex_location": get_app_setting("VERTEX_LOCATION", "global"),
-                "vertex_credentials": vertex_creds
-            })
-            entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
-            entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
+        else:
+            entry = {
+                "model_name": model_name,
+                "litellm_params": {"model": mid},
+                "model_info": {
+                    "id": mid,
+                    "input_cost_per_token": pricing.get("prompt", 0),
+                    "output_cost_per_token": pricing.get("completion", 0),
+                    "max_input_tokens": m_data.get("max_input_tokens", 0),
+                    "max_output_tokens": m_data.get("max_output_tokens", 0),
+                    "capabilities": m_data.get("capabilities", {}),
+                    "benchmarks": m_data.get("benchmarks", {}),
+                    "brand": m_data.get("brand", "other"),
+                    "tier": m_data.get("tier", "moderate")
+                }
+            }
+            
+            if mid.startswith("openrouter/"):
+                entry["litellm_params"]["api_key"] = get_app_setting("OPENROUTER_API_KEY")
+            elif mid.startswith("vertex_ai/"):
+                vertex_creds = get_app_setting("VERTEX_CREDENTIALS_PATH", DEFAULT_VERTEX_CREDS)
+                entry["litellm_params"].update({
+                    "vertex_project": get_app_setting("VERTEX_PROJECT"),
+                    "vertex_location": get_app_setting("VERTEX_LOCATION", "global"),
+                    "vertex_credentials": vertex_creds
+                })
+                entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
+                entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
             
         new_model_list.append(entry)
     

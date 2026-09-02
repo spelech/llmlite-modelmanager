@@ -1,0 +1,116 @@
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
+        <h2>Manager Configuration</h2>
+        <form id="settingsForm" class="settings-grid">
+            <section>
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">General Settings</h3>
+                <div class="filter-group">
+                    <span class="filter-label">LiteLLM Config Path</span>
+                    <input type="text" name="LITELLM_CONFIG" id="setting_CONFIG_PATH" placeholder="/app/config/config.yaml">
+                </div>
+            </section>
+
+            <section style="margin-top: 15px;">
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Notifications & Alerts (Apprise / Ntfy)</h3>
+                <div class="filter-group">
+                    <span class="filter-label">Apprise / Ntfy URL</span>
+                    <input type="text" name="APPRISE_URL" id="setting_APPRISE_URL" placeholder="http://apprise:8000/notify/system or https://ntfy.sh/topic">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                    <label class="checkbox-item"><input type="checkbox" name="NOTIFICATION_ENABLED" id="setting_NOTIF_ENABLED" value="true"> Enable Alerts</label>
+                    <label class="checkbox-item"><input type="checkbox" name="NOTIFY_ON_UNAVAILABLE" id="setting_NOTIF_UNAVAIL" value="true"> Alert Outages</label>
+                    <label class="checkbox-item"><input type="checkbox" name="NOTIFY_ON_TRENDING" id="setting_NOTIF_TRENDING" value="true"> Alert New Trending</label>
+                    <div class="filter-group" style="margin-top: -5px;">
+                        <span class="filter-label">Health Check (Hours)</span>
+                        <input type="number" name="HEALTH_CHECK_INTERVAL_HOURS" id="setting_HEALTH_INTERVAL" step="1" min="1" max="72" placeholder="24">
+                    </div>
+                </div>
+                <div class="filter-group" style="margin-top: 10px;">
+                    <span class="filter-label">Probe Mode</span>
+                    <select name="PROBE_MODE" id="setting_PROBE_MODE" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
+                        <option value="catalog">Catalog Check Only (0 Tokens - Free & Safe)</option>
+                        <option value="live">Live Generation Ping (1 Token/Day)</option>
+                    </select>
+                </div>
+                <div style="margin-top: 12px; display: flex; gap: 10px;">
+                    <button type="button" class="btn-refresh" onclick="testNotification()">🔔 Test Notification</button>
+                    <button type="button" class="btn-refresh" onclick="triggerHealthCheck()">🩺 Check Health Now (0 Tokens)</button>
+                </div>
+            </section>
+
+            <section style="margin-top: 15px;">
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">OpenRouter</h3>
+                <div class="filter-group">
+                    <span class="filter-label">API Key</span>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="password" name="OPENROUTER_API_KEY" id="setting_OR_KEY" placeholder="sk-or-v1-..." style="flex-grow: 1;">
+                        <button type="button" class="btn-refresh" onclick="togglePassword('setting_OR_KEY')">👁️</button>
+                    </div>
+                </div>
+            </section>
+
+            <section style="margin-top: 15px;">
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Vertex AI</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="filter-group">
+                        <span class="filter-label">Project ID</span>
+                        <input type="text" name="VERTEX_PROJECT" id="setting_VX_PROJ" placeholder="your-project-id">
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Location</span>
+                        <input type="text" name="VERTEX_LOCATION" id="setting_VX_LOC" placeholder="global">
+                    </div>
+                </div>
+                <div class="filter-group" style="margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span class="filter-label" style="margin-bottom: 0;">Service Account JSON</span>
+                        <button type="button" class="btn-refresh" id="toggleVxJsonBtn" onclick="toggleServiceAccountJson()" style="padding: 2px 8px; font-size: 0.7em;">👁️ Reveal JSON</button>
+                    </div>
+                    <textarea name="VERTEX_CREDENTIALS_JSON" id="setting_VX_JSON" placeholder='{ "type": "service_account", ... }' rows="5" class="masked-json" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical;"></textarea>
+                </div>
+            </section>
+
+            <section style="margin-top: 15px;">
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Local LLM Server (L³M²)</h3>
+                <div class="filter-group">
+                    <span class="filter-label">Server URL</span>
+                    <input type="text" name="LOCAL_LLM_URL" id="setting_LOCAL_URL" placeholder="http://10.0.0.21:5246">
+                </div>
+                <div style="margin-top: 10px;">
+                    <label class="checkbox-item"><input type="checkbox" name="LOCAL_LLM_ENABLED" id="setting_LOCAL_ENABLED" value="true"> Enable Local LLM Provider</label>
+                </div>
+            </section>
+
+            <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end;">
+                <button type="button" class="btn-refresh" onclick="closeSettings()">Cancel</button>
+                <button type="submit" class="btn-sync" style="padding: 10px 25px; background: var(--accent); color: var(--on-accent); border-radius: 4px; font-weight: bold;">Save & Refresh</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div id="importModal" class="modal" style="display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);">
+    <div style="background: var(--bg-card); margin: 6% auto; padding: 24px; border-radius: var(--radius-lg); width: 560px; max-width: 90%; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h2 style="margin: 0; font-size: 1.15em; color: var(--accent); font-weight: 700;">📥 Import Model Selection</h2>
+            <button type="button" onclick="closeImportModal()" style="background: transparent; color: var(--text-dim); font-size: 1.3em; cursor: pointer; border: none;">&times;</button>
+        </div>
+        <p style="font-size: 0.82em; color: var(--text-dim); margin-top: 0;">Upload an exported selection JSON file or paste model IDs / JSON array below to restore your selections.</p>
+        
+        <div style="margin-bottom: 14px;">
+            <input type="file" id="importFileInput" accept=".json" onchange="handleImportFile(event)" style="font-size: 0.82em; color: var(--text-main); width: 100%;">
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Or Paste Model IDs / JSON</span>
+            <textarea id="importTextarea" rows="8" placeholder='["openrouter/anthropic/claude-3.7-sonnet", "vertex_ai/gemini-2.5-flash"]' style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); font-size: 0.82em; width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+        </div>
+
+        <div style="margin-top: 18px; display: flex; gap: 12px; justify-content: flex-end;">
+            <button type="button" class="btn-refresh" onclick="closeImportModal()">Cancel</button>
+            <button type="button" class="btn-sync" onclick="applyImportedSelection()" style="padding: 8px 20px; background: var(--accent); color: var(--on-accent); border-radius: var(--radius-pill); font-weight: 700;">Apply Selection</button>
+        </div>
+    </div>
+</div>
