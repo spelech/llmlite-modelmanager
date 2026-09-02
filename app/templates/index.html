@@ -165,7 +165,7 @@
         
         .column { 
             flex: 1; 
-            min-width: 0;
+            min-width: 260px;
             background: var(--bg-card); 
             padding: 12px 14px; 
             border-radius: var(--radius-lg); 
@@ -173,8 +173,139 @@
             flex-direction: column; 
             overflow: hidden; 
             border: 1px solid var(--border);
+            position: relative;
+            transition: flex 0.28s cubic-bezier(0.4, 0, 0.2, 1), 
+                        min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1), 
+                        max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1), 
+                        padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                        background-color 0.2s;
         }
-        .column h2 { font-size: 1.05em; margin: 0 0 12px 0; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; font-weight: 700;}
+        .column:hover {
+            border-color: rgba(249, 115, 22, 0.35);
+        }
+
+        .column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+        .column-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .column-title-wrap h2 {
+            font-size: 1.0em;
+            margin: 0;
+            color: var(--text-main);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .btn-col-toggle {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            width: 26px;
+            height: 26px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .btn-col-toggle:hover {
+            background: var(--accent);
+            color: var(--on-accent);
+            border-color: var(--accent);
+        }
+
+        /* Collapsed Column Strip */
+        .collapsed-strip {
+            display: none;
+            position: absolute;
+            inset: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 6px;
+            cursor: pointer;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            transition: background 0.15s;
+        }
+        .collapsed-strip:hover {
+            background: var(--bg-input);
+        }
+
+        .collapsed-title-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            gap: 10px;
+        }
+        .collapsed-title {
+            font-size: 0.88em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+        .collapsed-count {
+            font-size: 0.7em;
+            background: var(--bg-body);
+            color: var(--accent);
+            padding: 4px 6px;
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--border);
+            font-weight: 700;
+        }
+
+        .collapsed-expand-btn {
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75em;
+            font-weight: 700;
+            margin-bottom: 4px;
+            transition: transform 0.2s, background 0.15s;
+        }
+        .collapsed-strip:hover .collapsed-expand-btn {
+            background: var(--accent);
+            color: var(--on-accent);
+            transform: scale(1.1);
+        }
+
+        /* Collapsed State Modifier */
+        .column.is-collapsed {
+            flex: 0 0 44px !important;
+            min-width: 44px !important;
+            max-width: 44px !important;
+            padding: 0 !important;
+            cursor: pointer;
+        }
+        .column.is-collapsed .column-header,
+        .column.is-collapsed .model-column-content {
+            display: none !important;
+        }
+        .column.is-collapsed .collapsed-strip {
+            display: flex !important;
+        }
 
         .model-column-content {
             flex-grow: 1;
@@ -687,7 +818,22 @@
             <form action="/sync" method="post" id="syncForm" style="height: 100%; display: flex; flex-direction: column;">
                 <div class="container">
                     <div class="column" id="orColumn">
-                        <h2>OpenRouter <span class="count-badge" id="orCount">0</span></h2>
+                        <div class="column-header">
+                            <div class="column-title-wrap">
+                                <h2>OpenRouter</h2>
+                                <span class="count-badge" id="orCount">0</span>
+                            </div>
+                            <button type="button" class="btn-col-toggle" title="Collapse Column" onclick="toggleColumn('orColumn')">◂</button>
+                        </div>
+
+                        <div class="collapsed-strip" onclick="toggleColumn('orColumn')" title="Click to expand OpenRouter column">
+                            <div class="collapsed-expand-btn">▸</div>
+                            <div class="collapsed-title-wrap">
+                                <span class="collapsed-title">OpenRouter</span>
+                                <span class="collapsed-count" id="orCollapsedCount">0</span>
+                            </div>
+                        </div>
+
                         <div id="orList" class="model-column-content">
                             <!-- Selected Section -->
                             <div class="model-section" id="orSelectedSection">
@@ -784,7 +930,22 @@
                     </div>
                     
                     <div class="column" id="vxColumn">
-                        <h2>Vertex AI <span class="count-badge" id="vxCount">0</span></h2>
+                        <div class="column-header">
+                            <div class="column-title-wrap">
+                                <h2>Vertex AI</h2>
+                                <span class="count-badge" id="vxCount">0</span>
+                            </div>
+                            <button type="button" class="btn-col-toggle" title="Collapse Column" onclick="toggleColumn('vxColumn')">◂</button>
+                        </div>
+
+                        <div class="collapsed-strip" onclick="toggleColumn('vxColumn')" title="Click to expand Vertex AI column">
+                            <div class="collapsed-expand-btn">▸</div>
+                            <div class="collapsed-title-wrap">
+                                <span class="collapsed-title">Vertex AI</span>
+                                <span class="collapsed-count" id="vxCollapsedCount">0</span>
+                            </div>
+                        </div>
+
                         <div id="vxList" class="model-column-content">
                             <!-- Selected Section -->
                             <div class="model-section" id="vxSelectedSection">
@@ -881,7 +1042,22 @@
                     </div>
 
                     <div class="column" id="localColumn">
-                        <h2>Local / Ollama <span class="count-badge" id="localCount">0</span></h2>
+                        <div class="column-header">
+                            <div class="column-title-wrap">
+                                <h2>Local / Ollama</h2>
+                                <span class="count-badge" id="localCount">0</span>
+                            </div>
+                            <button type="button" class="btn-col-toggle" title="Collapse Column" onclick="toggleColumn('localColumn')">◂</button>
+                        </div>
+
+                        <div class="collapsed-strip" onclick="toggleColumn('localColumn')" title="Click to expand Local column">
+                            <div class="collapsed-expand-btn">▸</div>
+                            <div class="collapsed-title-wrap">
+                                <span class="collapsed-title">Local / Ollama</span>
+                                <span class="collapsed-count" id="localCollapsedCount">0</span>
+                            </div>
+                        </div>
+
                         <div id="localList" class="model-column-content">
                             <!-- Selected Section -->
                             <div class="model-section" id="localSelectedSection">
@@ -1417,6 +1593,33 @@
             }
         }
 
+        function toggleColumn(colId) {
+            const col = document.getElementById(colId);
+            if (!col) return;
+            col.classList.toggle('is-collapsed');
+            
+            try {
+                const state = {
+                    or: document.getElementById('orColumn')?.classList.contains('is-collapsed') || false,
+                    vx: document.getElementById('vxColumn')?.classList.contains('is-collapsed') || false,
+                    local: document.getElementById('localColumn')?.classList.contains('is-collapsed') || false
+                };
+                localStorage.setItem('modelmanager_collapsed_cols', JSON.stringify(state));
+            } catch (e) {}
+        }
+
+        function restoreColumnCollapseState() {
+            try {
+                const saved = localStorage.getItem('modelmanager_collapsed_cols');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    if (state.or) document.getElementById('orColumn')?.classList.add('is-collapsed');
+                    if (state.vx) document.getElementById('vxColumn')?.classList.add('is-collapsed');
+                    if (state.local) document.getElementById('localColumn')?.classList.add('is-collapsed');
+                }
+            } catch (e) {}
+        }
+
         function handleModelToggle(checkbox) {
             const item = checkbox.closest('.model-item');
             if (!item) return;
@@ -1670,14 +1873,17 @@
             if (document.getElementById('orSelectedCount')) document.getElementById('orSelectedCount').innerText = counts.orSelected;
             if (document.getElementById('orAvailableCount')) document.getElementById('orAvailableCount').innerText = counts.orAvailable;
             if (document.getElementById('orCount')) document.getElementById('orCount').innerText = counts.orSelected + counts.orAvailable;
+            if (document.getElementById('orCollapsedCount')) document.getElementById('orCollapsedCount').innerText = counts.orSelected + counts.orAvailable;
 
             if (document.getElementById('vxSelectedCount')) document.getElementById('vxSelectedCount').innerText = counts.vxSelected;
             if (document.getElementById('vxAvailableCount')) document.getElementById('vxAvailableCount').innerText = counts.vxAvailable;
             if (document.getElementById('vxCount')) document.getElementById('vxCount').innerText = counts.vxSelected + counts.vxAvailable;
+            if (document.getElementById('vxCollapsedCount')) document.getElementById('vxCollapsedCount').innerText = counts.vxSelected + counts.vxAvailable;
 
             if (document.getElementById('localSelectedCount')) document.getElementById('localSelectedCount').innerText = counts.localSelected;
             if (document.getElementById('localAvailableCount')) document.getElementById('localAvailableCount').innerText = counts.localAvailable;
             if (document.getElementById('localCount')) document.getElementById('localCount').innerText = counts.localSelected + counts.localAvailable;
+            if (document.getElementById('localCollapsedCount')) document.getElementById('localCollapsedCount').innerText = counts.localSelected + counts.localAvailable;
         }
 
         function populateBrands() {
@@ -1712,6 +1918,7 @@
         }
 
         window.onload = async () => {
+            restoreColumnCollapseState();
             populateBrands();
             
             try {
