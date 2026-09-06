@@ -57,7 +57,15 @@ def export_opencode_config(models: list, target_path: str = "/app/opencode_confi
             }
         }
     
-    content["provider"]["litellm"]["models"] = opencode_models
+    existing_models = content.get("provider", {}).get("litellm", {}).get("models", {})
+    merged_models = dict(existing_models) if isinstance(existing_models, dict) else {}
+    for m_name, m_cfg in opencode_models.items():
+        if m_name in merged_models and isinstance(merged_models[m_name], dict):
+            merged_models[m_name].update(m_cfg)
+        else:
+            merged_models[m_name] = m_cfg
+
+    content["provider"]["litellm"]["models"] = merged_models
     
     with open(target_path, "w") as f:
         json.dump(content, f, indent=2)
