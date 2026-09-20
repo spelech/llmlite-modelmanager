@@ -119,11 +119,13 @@ async function initApp() {
             const notifUnavail = document.getElementById('setting_NOTIF_UNAVAIL');
             const notifTrending = document.getElementById('setting_NOTIF_TRENDING');
             const localEnabled = document.getElementById('setting_LOCAL_ENABLED');
+            const remoteOpencodeEnabled = document.getElementById('setting_OPENCODE_REMOTE_ENABLED');
 
             data.NOTIFICATION_ENABLED = notifEnabled && notifEnabled.checked ? 'true' : 'false';
             data.NOTIFY_ON_UNAVAILABLE = notifUnavail && notifUnavail.checked ? 'true' : 'false';
             data.NOTIFY_ON_TRENDING = notifTrending && notifTrending.checked ? 'true' : 'false';
             data.LOCAL_LLM_ENABLED = localEnabled && localEnabled.checked ? 'true' : 'false';
+            data.OPENCODE_REMOTE_ENABLED = remoteOpencodeEnabled && remoteOpencodeEnabled.checked ? 'true' : 'false';
 
             try {
                 const resp = await fetch('/api/settings', {

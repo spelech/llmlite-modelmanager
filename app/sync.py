@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import yaml
 import time
@@ -69,6 +70,246 @@ def export_opencode_config(models: list, target_path: str = "/app/opencode_confi
     
     with open(target_path, "w") as f:
         json.dump(content, f, indent=2)
+
+def get_remote_ssh_connection(
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    user: Optional[str] = None,
+    key_str: Optional[str] = None,
+    passphrase: Optional[str] = None,
+    key_path: Optional[str] = None,
+    timeout: int = 10
+):
+    """Establishes an SSH connection and returns (client, sftp) handles using in-memory or file-based keys."""
+    import paramiko
+
+    target_host = (host or get_app_setting("OPENCODE_REMOTE_HOST", "") or "").strip()
+    target_port = int(port or get_app_setting("OPENCODE_REMOTE_PORT", 22) or 22)
+    target_user = (user or get_app_setting("OPENCODE_REMOTE_USER", "") or "").strip()
+    target_key = key_str if key_str is not None else (get_app_setting("OPENCODE_REMOTE_KEY", "") or "")
+    target_passphrase = passphrase if passphrase is not None else get_app_setting("OPENCODE_REMOTE_KEY_PASSPHRASE", None)
+
+    if not target_host or not target_user:
+        raise ValueError("Remote OpenCode Host and User must be configured.")
+
+    pkey = None
+    if target_key and target_key.strip():
+        buf = io.StringIO(target_key.strip())
+        for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+            buf.seek(0)
+            try:
+                pkey = key_cls.from_private_key(buf, password=target_passphrase)
+                break
+            except Exception:
+                continue
+        if pkey is None:
+            raise ValueError("Failed to parse provided SSH Private Key (supported formats: Ed25519, RSA, ECDSA).")
+    elif key_path and os.path.exists(key_path):
+        for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey):
+            try:
+                pkey = key_cls.from_private_key_file(key_path, password=target_passphrase)
+                break
+            except Exception:
+                continue
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(
+        hostname=target_host,
+        port=target_port,
+        username=target_user,
+        pkey=pkey,
+        timeout=timeout,
+        look_for_keys=False if pkey else True,
+        allow_agent=False if pkey else True
+    )
+    sftp = client.open_sftp()
+    return client, sftp
+
+def test_remote_opencode_connection(
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    user: Optional[str] = None,
+    key_str: Optional[str] = None,
+    passphrase: Optional[str] = None,
+    config_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """Test SSH connectivity and verify target file/directory accessibility on remote host."""
+    client = None
+    sftp = None
+    try:
+        client, sftp = get_remote_ssh_connection(
+            host=host, port=port, user=user, key_str=key_str, passphrase=passphrase
+        )
+        target_path = (config_path or get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "").strip()
+        path_status = "not_checked"
+        if target_path:
+            try:
+                sftp.stat(target_path)
+                path_status = "exists"
+            except FileNotFoundError:
+                path_status = "not_found_will_create"
+            except Exception as pe:
+                path_status = f"error: {pe}"
+        
+        target_user = (user or get_app_setting("OPENCODE_REMOTE_USER", "")).strip()
+        target_host = (host or get_app_setting("OPENCODE_REMOTE_HOST", "")).strip()
+        target_port = port or get_app_setting("OPENCODE_REMOTE_PORT", 22)
+        return {
+            "status": "success",
+            "message": f"Successfully authenticated to {target_user}@{target_host}:{target_port}",
+            "config_path_status": path_status
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+    finally:
+        if sftp:
+            try:
+                sftp.close()
+            except Exception:
+                pass
+        if client:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+def export_remote_opencode_config(models: list) -> Dict[str, Any]:
+    """Sync active LiteLLM models and optional plugin configuration to remote host over SSH."""
+    enabled_str = str(get_app_setting("OPENCODE_REMOTE_ENABLED", "false")).lower()
+    if enabled_str not in ("true", "1", "yes"):
+        return {"status": "skipped", "reason": "remote_sync_disabled"}
+
+    config_path = (get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "").strip()
+    if not config_path:
+        return {"status": "skipped", "reason": "missing_remote_config_path"}
+
+    plugin_path = (get_app_setting("OPENCODE_REMOTE_PLUGIN_PATH", "") or "").strip()
+
+    client = None
+    sftp = None
+    try:
+        client, sftp = get_remote_ssh_connection()
+    except Exception as e:
+        err_msg = f"Remote OpenCode SSH connection failed: {e}"
+        print(err_msg)
+        send_notification("sync_warning", err_msg)
+        return {"status": "failed", "error": err_msg}
+
+    try:
+        content = {}
+        raw_data = ""
+        file_exists = False
+        try:
+            with sftp.open(config_path, "r") as f:
+                raw_bytes = f.read()
+                raw_data = raw_bytes.decode("utf-8")
+                content = json.loads(raw_data)
+                file_exists = True
+        except FileNotFoundError:
+            content = {"$schema": "https://opencode.ai/config.json"}
+        except Exception as e:
+            err_msg = f"Error reading remote opencode config: {e}"
+            print(err_msg)
+            send_notification("sync_warning", err_msg)
+            return {"status": "failed", "error": err_msg}
+
+        if "provider" not in content or not isinstance(content["provider"], dict):
+            content["provider"] = {}
+        if "litellm" not in content["provider"] or not isinstance(content["provider"]["litellm"], dict):
+            content["provider"]["litellm"] = {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "LiteLLM Gateway",
+                "options": {"baseURL": "http://10.0.0.10:8448/v1"},
+                "models": {}
+            }
+
+        opencode_models = {}
+        for m in models:
+            m_name = m.get("model_name")
+            if not m_name or m_name.endswith("*"):
+                continue
+            info = m.get("model_info", {})
+            ctx_limit = info.get("max_input_tokens", 128000) or 128000
+            out_limit = info.get("max_output_tokens", 8192) or 8192
+            opencode_models[m_name] = {
+                "name": m_name,
+                "limit": {
+                    "context": ctx_limit,
+                    "output": out_limit
+                }
+            }
+
+        existing_models = content.get("provider", {}).get("litellm", {}).get("models", {})
+        merged_models = dict(existing_models) if isinstance(existing_models, dict) else {}
+        for m_name, m_cfg in opencode_models.items():
+            if m_name in merged_models and isinstance(merged_models[m_name], dict):
+                merged_models[m_name].update(m_cfg)
+            else:
+                merged_models[m_name] = m_cfg
+        content["provider"]["litellm"]["models"] = merged_models
+
+        # Optional plugin path registration and provider enabling
+        if plugin_path:
+            norm_plugin = plugin_path.replace("\\", "/")
+            plugins = content.get("plugin", [])
+            if not isinstance(plugins, list):
+                plugins = [plugins] if plugins else []
+            if norm_plugin not in plugins:
+                plugins.append(norm_plugin)
+            content["plugin"] = plugins
+
+            enabled_providers = content.get("enabled_providers")
+            if isinstance(enabled_providers, list) and "google-agy" not in enabled_providers:
+                enabled_providers.append("google-agy")
+
+        tmp_path = config_path + ".tmp"
+        bak_path = config_path + ".bak"
+
+        # Create remote backup if file already exists
+        if file_exists and raw_data:
+            try:
+                with sftp.open(bak_path, "w") as bak_f:
+                    bak_f.write(raw_data)
+            except Exception as be:
+                print(f"Warning: Failed to create remote backup file {bak_path}: {be}")
+
+        # Write to tmp file
+        with sftp.open(tmp_path, "w") as tmp_f:
+            tmp_f.write(json.dumps(content, indent=2))
+
+        # Atomic replacement for Windows/Linux SFTP servers
+        if file_exists:
+            try:
+                sftp.remove(config_path)
+            except Exception:
+                pass
+        sftp.rename(tmp_path, config_path)
+
+        return {
+            "status": "success",
+            "remote_path": config_path,
+            "models_count": len(opencode_models)
+        }
+    except Exception as e:
+        err_msg = f"Failed to sync remote opencode config: {e}"
+        print(err_msg)
+        send_notification("sync_warning", err_msg)
+        return {"status": "failed", "error": err_msg}
+    finally:
+        if sftp:
+            try:
+                sftp.close()
+            except Exception:
+                pass
+        if client:
+            try:
+                client.close()
+            except Exception:
+                pass
 
 def export_librechat_config(models: list, target_paths: Optional[List[str]] = None) -> Dict[str, Any]:
     """Sync active LiteLLM models and token limits into librechat.yaml configurations."""
@@ -224,10 +465,12 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                     "capabilities": m_data.get("capabilities", {}),
                     "benchmarks": m_data.get("benchmarks", {}),
                     "brand": m_data.get("brand", "ollama"),
-                    "tier": "cheap"
+                    "tier": "cheap",
+                    "pricing_tier": "cheap"
                 }
             }
         else:
+            tier_val = m_data.get("tier", "moderate")
             entry = {
                 "model_name": model_name,
                 "litellm_params": {"model": mid},
@@ -240,7 +483,8 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                     "capabilities": m_data.get("capabilities", {}),
                     "benchmarks": m_data.get("benchmarks", {}),
                     "brand": m_data.get("brand", "other"),
-                    "tier": m_data.get("tier", "moderate")
+                    "tier": tier_val,
+                    "pricing_tier": tier_val
                 }
             }
             
@@ -264,10 +508,12 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
         yaml.safe_dump(config, f, sort_keys=False)
         
     export_opencode_config(config["model_list"])
+    remote_opencode_res = await asyncio.to_thread(export_remote_opencode_config, config["model_list"])
     librechat_res = export_librechat_config(config["model_list"])
     return {
         "status": "success",
         "updated_models": len(new_model_list),
+        "remote_opencode_sync": remote_opencode_res,
         "librechat_sync": librechat_res
     }
 

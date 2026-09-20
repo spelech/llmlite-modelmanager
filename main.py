@@ -49,6 +49,8 @@ from app.openrouter import get_openrouter_models
 from app.local_llm import verify_and_cache_local_models
 from app.sync import (
     export_opencode_config,
+    export_remote_opencode_config,
+    test_remote_opencode_connection,
     export_librechat_config,
     sync_models_internal,
     verify_litellm_healthy,
@@ -182,6 +184,26 @@ async def api_update_settings(data: Dict[str, str]):
     update_vertex_creds_file()
     return {"status": "success"}
 
+@app.post("/api/settings/test-remote-opencode")
+async def api_test_remote_opencode(data: Optional[Dict[str, Any]] = None):
+    data = data or {}
+    port_val = None
+    if data.get("OPENCODE_REMOTE_PORT"):
+        try:
+            port_val = int(data.get("OPENCODE_REMOTE_PORT"))
+        except (ValueError, TypeError):
+            pass
+
+    return await asyncio.to_thread(
+        test_remote_opencode_connection,
+        host=data.get("OPENCODE_REMOTE_HOST"),
+        port=port_val,
+        user=data.get("OPENCODE_REMOTE_USER"),
+        key_str=data.get("OPENCODE_REMOTE_KEY"),
+        passphrase=data.get("OPENCODE_REMOTE_KEY_PASSPHRASE"),
+        config_path=data.get("OPENCODE_REMOTE_CONFIG_PATH")
+    )
+
 @app.get("/api/config")
 async def get_config():
     try:
@@ -206,7 +228,8 @@ async def sync_opencode():
                 config = yaml.safe_load(f) or {}
             models = config.get("model_list", [])
             export_opencode_config(models)
-            return {"status": "success", "exported_models": len(models)}
+            remote_res = await asyncio.to_thread(export_remote_opencode_config, models)
+            return {"status": "success", "exported_models": len(models), "remote_sync": remote_res}
         except Exception as e:
             return {"status": "error", "message": str(e)}
     return {"status": "error", "message": "Config file not found"}
