@@ -75,10 +75,54 @@
                 <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Local LLM Server (L³M²)</h3>
                 <div class="filter-group">
                     <span class="filter-label">Server URL</span>
-                    <input type="text" name="LOCAL_LLM_URL" id="setting_LOCAL_URL" placeholder="http://10.0.0.21:5246">
+                    <input type="text" name="LOCAL_LLM_URL" id="setting_LOCAL_URL" placeholder="http://127.0.0.1:5246">
                 </div>
                 <div style="margin-top: 10px;">
                     <label class="checkbox-item"><input type="checkbox" name="LOCAL_LLM_ENABLED" id="setting_LOCAL_ENABLED" value="true"> Enable Local LLM Provider</label>
+                </div>
+            </section>
+
+            <section style="margin-top: 15px;">
+                <h3 style="font-size: 0.8em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border);">Remote OpenCode Sync (SSH)</h3>
+                <div style="margin-bottom: 10px;">
+                    <label class="checkbox-item"><input type="checkbox" name="OPENCODE_REMOTE_ENABLED" id="setting_OPENCODE_REMOTE_ENABLED" value="true"> Enable Remote OpenCode Sync</label>
+                </div>
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 10px; margin-bottom: 10px;">
+                    <div class="filter-group">
+                        <span class="filter-label">Host / IP</span>
+                        <input type="text" name="OPENCODE_REMOTE_HOST" id="setting_OPENCODE_REMOTE_HOST" placeholder="192.168.1.100">
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Port</span>
+                        <input type="number" name="OPENCODE_REMOTE_PORT" id="setting_OPENCODE_REMOTE_PORT" placeholder="22">
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">SSH User</span>
+                        <input type="text" name="OPENCODE_REMOTE_USER" id="setting_OPENCODE_REMOTE_USER" placeholder="username">
+                    </div>
+                </div>
+                <div class="filter-group" style="margin-bottom: 10px;">
+                    <span class="filter-label">Remote opencode.json Path</span>
+                    <input type="text" name="OPENCODE_REMOTE_CONFIG_PATH" id="setting_OPENCODE_REMOTE_CONFIG_PATH" placeholder="C:/Users/username/.config/opencode/opencode.json">
+                </div>
+                <div class="filter-group" style="margin-bottom: 10px;">
+                    <span class="filter-label">Remote Plugin Path (Optional, e.g. opencode-agy-auth)</span>
+                    <input type="text" name="OPENCODE_REMOTE_PLUGIN_PATH" id="setting_OPENCODE_REMOTE_PLUGIN_PATH" placeholder="C:/Users/username/repos/opencode-agy-auth">
+                </div>
+                <div class="filter-group" style="margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span class="filter-label" style="margin-bottom: 0;">SSH Private Key (OpenSSH / RSA / Ed25519)</span>
+                        <button type="button" class="btn-refresh" id="toggleSshKeyBtn" onclick="toggleSshKeyMask()" style="padding: 2px 8px; font-size: 0.7em;">👁️ Reveal Key</button>
+                    </div>
+                    <textarea name="OPENCODE_REMOTE_KEY" id="setting_OPENCODE_REMOTE_KEY" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----" rows="4" class="masked-json" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8em; resize: vertical; width: 100%; box-sizing: border-box;"></textarea>
+                </div>
+                <div class="filter-group" style="margin-bottom: 12px;">
+                    <span class="filter-label">Key Passphrase (Optional)</span>
+                    <input type="password" name="OPENCODE_REMOTE_KEY_PASSPHRASE" id="setting_OPENCODE_REMOTE_KEY_PASSPHRASE" placeholder="Optional passphrase">
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="btn-refresh" id="testRemoteOpenCodeBtn" onclick="testRemoteOpenCode()" style="padding: 6px 14px; font-size: 0.8em;">🔌 Test SSH Connection</button>
+                    <span id="testRemoteOpenCodeStatus" style="font-size: 0.8em; color: var(--text-dim);"></span>
                 </div>
             </section>
 

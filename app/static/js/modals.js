@@ -217,9 +217,21 @@ async function openSettings() {
         if (document.getElementById('setting_VX_PROJ')) document.getElementById('setting_VX_PROJ').value = settings.VERTEX_PROJECT || '';
         if (document.getElementById('setting_VX_LOC')) document.getElementById('setting_VX_LOC').value = settings.VERTEX_LOCATION || 'global';
         if (document.getElementById('setting_VX_JSON')) document.getElementById('setting_VX_JSON').value = settings.VERTEX_CREDENTIALS_JSON || '';
-        if (document.getElementById('setting_LOCAL_URL')) document.getElementById('setting_LOCAL_URL').value = settings.LOCAL_LLM_URL || 'http://10.0.0.21:5246';
+        if (document.getElementById('setting_LOCAL_URL')) document.getElementById('setting_LOCAL_URL').value = settings.LOCAL_LLM_URL || '';
         if (document.getElementById('setting_LOCAL_ENABLED')) document.getElementById('setting_LOCAL_ENABLED').checked = (settings.LOCAL_LLM_ENABLED || 'true').toLowerCase() === 'true';
         if (document.getElementById('setting_CONFIG_PATH')) document.getElementById('setting_CONFIG_PATH').value = settings.LITELLM_CONFIG || '/app/config/config.yaml';
+
+        if (document.getElementById('setting_OPENCODE_REMOTE_ENABLED')) document.getElementById('setting_OPENCODE_REMOTE_ENABLED').checked = (settings.OPENCODE_REMOTE_ENABLED || 'false').toLowerCase() === 'true';
+        if (document.getElementById('setting_OPENCODE_REMOTE_HOST')) document.getElementById('setting_OPENCODE_REMOTE_HOST').value = settings.OPENCODE_REMOTE_HOST || '';
+        if (document.getElementById('setting_OPENCODE_REMOTE_PORT')) document.getElementById('setting_OPENCODE_REMOTE_PORT').value = settings.OPENCODE_REMOTE_PORT || '22';
+        if (document.getElementById('setting_OPENCODE_REMOTE_USER')) document.getElementById('setting_OPENCODE_REMOTE_USER').value = settings.OPENCODE_REMOTE_USER || '';
+        if (document.getElementById('setting_OPENCODE_REMOTE_CONFIG_PATH')) document.getElementById('setting_OPENCODE_REMOTE_CONFIG_PATH').value = settings.OPENCODE_REMOTE_CONFIG_PATH || '';
+        if (document.getElementById('setting_OPENCODE_REMOTE_PLUGIN_PATH')) document.getElementById('setting_OPENCODE_REMOTE_PLUGIN_PATH').value = settings.OPENCODE_REMOTE_PLUGIN_PATH || '';
+        if (document.getElementById('setting_OPENCODE_REMOTE_KEY')) document.getElementById('setting_OPENCODE_REMOTE_KEY').value = settings.OPENCODE_REMOTE_KEY || '';
+        if (document.getElementById('setting_OPENCODE_REMOTE_KEY_PASSPHRASE')) document.getElementById('setting_OPENCODE_REMOTE_KEY_PASSPHRASE').value = settings.OPENCODE_REMOTE_KEY_PASSPHRASE || '';
+        
+        const testStatus = document.getElementById('testRemoteOpenCodeStatus');
+        if (testStatus) testStatus.innerText = '';
 
         if (document.getElementById('setting_APPRISE_URL')) document.getElementById('setting_APPRISE_URL').value = settings.APPRISE_URL || '';
         if (document.getElementById('setting_NOTIF_ENABLED')) document.getElementById('setting_NOTIF_ENABLED').checked = (settings.NOTIFICATION_ENABLED || 'true').toLowerCase() === 'true';
@@ -228,11 +240,16 @@ async function openSettings() {
         if (document.getElementById('setting_HEALTH_INTERVAL')) document.getElementById('setting_HEALTH_INTERVAL').value = settings.HEALTH_CHECK_INTERVAL_HOURS || '24';
         if (document.getElementById('setting_PROBE_MODE')) document.getElementById('setting_PROBE_MODE').value = settings.PROBE_MODE || 'catalog';
 
-        // Reset JSON mask state
+        // Reset JSON and SSH mask state
         const txt = document.getElementById('setting_VX_JSON');
         const btn = document.getElementById('toggleVxJsonBtn');
         if (txt) txt.classList.remove('revealed');
         if (btn) btn.innerText = '👁️ Reveal JSON';
+
+        const sshKey = document.getElementById('setting_OPENCODE_REMOTE_KEY');
+        const sshBtn = document.getElementById('toggleSshKeyBtn');
+        if (sshKey) sshKey.classList.remove('revealed');
+        if (sshBtn) sshBtn.innerText = '👁️ Reveal Key';
 
         const modal = document.getElementById('settingsModal');
         if (modal) modal.style.display = 'block';
@@ -344,6 +361,73 @@ async function restartLiteLLM() {
     }
 }
 
+/**
+ * Toggles SSH key masking in the settings modal.
+ */
+function toggleSshKeyMask() {
+    const keyEl = document.getElementById('setting_OPENCODE_REMOTE_KEY');
+    const btn = document.getElementById('toggleSshKeyBtn');
+    if (!keyEl || !btn) return;
+
+    if (keyEl.classList.contains('revealed')) {
+        keyEl.classList.remove('revealed');
+        btn.innerText = '👁️ Reveal Key';
+    } else {
+        keyEl.classList.add('revealed');
+        btn.innerText = '🔒 Mask Key';
+    }
+}
+
+/**
+ * Tests SSH connection and remote path accessibility for OpenCode.
+ */
+async function testRemoteOpenCode() {
+    const btn = document.getElementById('testRemoteOpenCodeBtn');
+    const statusEl = document.getElementById('testRemoteOpenCodeStatus');
+    if (btn) btn.disabled = true;
+    if (statusEl) {
+        statusEl.innerText = 'Testing connection...';
+        statusEl.style.color = 'var(--text-dim)';
+    }
+
+    const payload = {
+        OPENCODE_REMOTE_HOST: document.getElementById('setting_OPENCODE_REMOTE_HOST')?.value || '',
+        OPENCODE_REMOTE_PORT: document.getElementById('setting_OPENCODE_REMOTE_PORT')?.value || '',
+        OPENCODE_REMOTE_USER: document.getElementById('setting_OPENCODE_REMOTE_USER')?.value || '',
+        OPENCODE_REMOTE_KEY: document.getElementById('setting_OPENCODE_REMOTE_KEY')?.value || '',
+        OPENCODE_REMOTE_KEY_PASSPHRASE: document.getElementById('setting_OPENCODE_REMOTE_KEY_PASSPHRASE')?.value || '',
+        OPENCODE_REMOTE_CONFIG_PATH: document.getElementById('setting_OPENCODE_REMOTE_CONFIG_PATH')?.value || ''
+    };
+
+    try {
+        const resp = await fetch('/api/settings/test-remote-opencode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (res.status === 'success') {
+            const pathInfo = res.config_path_status ? ` (path: ${res.config_path_status})` : '';
+            if (statusEl) {
+                statusEl.innerText = `✅ Connected!${pathInfo}`;
+                statusEl.style.color = 'var(--success, #22c55e)';
+            }
+        } else {
+            if (statusEl) {
+                statusEl.innerText = `❌ ${res.message || 'Connection failed'}`;
+                statusEl.style.color = 'var(--danger, #ef4444)';
+            }
+        }
+    } catch (e) {
+        if (statusEl) {
+            statusEl.innerText = `❌ Error: ${e.message || e}`;
+            statusEl.style.color = 'var(--danger, #ef4444)';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // Expose globally for inline HTML event handlers and cross-module access
 window.exportSelections = exportSelections;
 window.openImportModal = openImportModal;
@@ -353,6 +437,8 @@ window.applyImportedSelection = applyImportedSelection;
 window.processImportSelections = processImportSelections;
 window.togglePassword = togglePassword;
 window.toggleServiceAccountJson = toggleServiceAccountJson;
+window.toggleSshKeyMask = toggleSshKeyMask;
+window.testRemoteOpenCode = testRemoteOpenCode;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.testNotification = testNotification;
