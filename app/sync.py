@@ -83,7 +83,8 @@ def get_remote_ssh_connection(
     """Establishes an SSH connection and returns (client, sftp) handles using in-memory or file-based keys."""
     import paramiko
 
-    target_host = (host or get_app_setting("OPENCODE_REMOTE_HOST", "") or "").strip()
+    raw_host = (host or get_app_setting("OPENCODE_REMOTE_HOST", "") or "").strip()
+    target_host = raw_host.split(",")[0].strip() if raw_host else ""
     target_port = int(port or get_app_setting("OPENCODE_REMOTE_PORT", 22) or 22)
     target_user = (user or get_app_setting("OPENCODE_REMOTE_USER", "") or "").strip()
     target_key = key_str if key_str is not None else (get_app_setting("OPENCODE_REMOTE_KEY", "") or "")
@@ -134,72 +135,144 @@ def test_remote_opencode_connection(
     passphrase: Optional[str] = None,
     config_path: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Test SSH connectivity and verify target file/directory accessibility on remote host."""
+    """Test SSH connectivity and verify target file/directory accessibility on remote host(s)."""
+    raw_host = (host if host is not None else (get_app_setting("OPENCODE_REMOTE_HOST", "") or "")).strip()
+    hosts = [h.strip() for h in raw_host.split(",") if h.strip()]
+    if not hosts:
+        return {
+            "status": "error",
+            "message": "Remote OpenCode Host and User must be configured."
+        }
+
+    target_port = port or get_app_setting("OPENCODE_REMOTE_PORT", 22)
+    target_user = (user or get_app_setting("OPENCODE_REMOTE_USER", "")).strip()
+    check_config_path = (config_path if config_path is not None else (get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "")).strip()
+
+    if len(hosts) == 1:
+        single_host = hosts[0]
+        client = None
+        sftp = None
+        try:
+            client, sftp = get_remote_ssh_connection(
+                host=single_host, port=port, user=user, key_str=key_str, passphrase=passphrase
+            )
+            path_status = "not_checked"
+            if check_config_path:
+                try:
+                    sftp.stat(check_config_path)
+                    path_status = "exists"
+                except FileNotFoundError:
+                    path_status = "not_found_will_create"
+                except Exception as pe:
+                    path_status = f"error: {pe}"
+            return {
+                "status": "success",
+                "message": f"Successfully authenticated to {target_user}@{single_host}:{target_port}",
+                "config_path_status": path_status
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+        finally:
+            if sftp:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+            if client:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+    # Multi-host testing
+    successes = []
+    failures = []
+    host_results = {}
+    overall_path_status = "not_checked"
+
+    for h in hosts:
+        client = None
+        sftp = None
+        try:
+            client, sftp = get_remote_ssh_connection(
+                host=h, port=port, user=user, key_str=key_str, passphrase=passphrase, timeout=5
+            )
+            path_status = "not_checked"
+            if check_config_path:
+                try:
+                    sftp.stat(check_config_path)
+                    path_status = "exists"
+                except FileNotFoundError:
+                    path_status = "not_found_will_create"
+                except Exception as pe:
+                    path_status = f"error: {pe}"
+            successes.append(h)
+            host_results[h] = {"status": "success", "config_path_status": path_status}
+            overall_path_status = path_status
+        except Exception as e:
+            failures.append(f"{h} ({e})")
+            host_results[h] = {"status": "error", "error": str(e)}
+        finally:
+            if sftp:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+            if client:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+    if not failures:
+        return {
+            "status": "success",
+            "message": f"Successfully authenticated to all {len(hosts)} hosts ({', '.join(hosts)})",
+            "config_path_status": overall_path_status,
+            "hosts": hosts,
+            "details": host_results
+        }
+    elif successes:
+        return {
+            "status": "error",
+            "message": f"Connected to {len(successes)}/{len(hosts)} hosts. Failed: {'; '.join(failures)}",
+            "config_path_status": overall_path_status,
+            "details": host_results
+        }
+    else:
+        return {
+            "status": "error",
+            "message": f"Failed to connect to all hosts: {'; '.join(failures)}",
+            "details": host_results
+        }
+
+def sync_single_remote_host(
+    target_host: str,
+    models: list,
+    config_path: str,
+    plugin_path: str,
+    port: Optional[int] = None,
+    user: Optional[str] = None,
+    key_str: Optional[str] = None,
+    passphrase: Optional[str] = None,
+    timeout: int = 10
+) -> Dict[str, Any]:
+    """Safely synchronize OpenCode configuration to a single remote host."""
     client = None
     sftp = None
     try:
         client, sftp = get_remote_ssh_connection(
-            host=host, port=port, user=user, key_str=key_str, passphrase=passphrase
+            host=target_host,
+            port=port,
+            user=user,
+            key_str=key_str,
+            passphrase=passphrase,
+            timeout=timeout
         )
-        target_path = (config_path or get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "").strip()
-        path_status = "not_checked"
-        if target_path:
-            try:
-                sftp.stat(target_path)
-                path_status = "exists"
-            except FileNotFoundError:
-                path_status = "not_found_will_create"
-            except Exception as pe:
-                path_status = f"error: {pe}"
-        
-        target_user = (user or get_app_setting("OPENCODE_REMOTE_USER", "")).strip()
-        target_host = (host or get_app_setting("OPENCODE_REMOTE_HOST", "")).strip()
-        target_port = port or get_app_setting("OPENCODE_REMOTE_PORT", 22)
-        return {
-            "status": "success",
-            "message": f"Successfully authenticated to {target_user}@{target_host}:{target_port}",
-            "config_path_status": path_status
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
-    finally:
-        if sftp:
-            try:
-                sftp.close()
-            except Exception:
-                pass
-        if client:
-            try:
-                client.close()
-            except Exception:
-                pass
 
-def export_remote_opencode_config(models: list) -> Dict[str, Any]:
-    """Sync active LiteLLM models and optional plugin configuration to remote host over SSH."""
-    enabled_str = str(get_app_setting("OPENCODE_REMOTE_ENABLED", "false")).lower()
-    if enabled_str not in ("true", "1", "yes"):
-        return {"status": "skipped", "reason": "remote_sync_disabled"}
-
-    config_path = (get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "").strip()
-    if not config_path:
-        return {"status": "skipped", "reason": "missing_remote_config_path"}
-
-    plugin_path = (get_app_setting("OPENCODE_REMOTE_PLUGIN_PATH", "") or "").strip()
-
-    client = None
-    sftp = None
-    try:
-        client, sftp = get_remote_ssh_connection()
-    except Exception as e:
-        err_msg = f"Remote OpenCode SSH connection failed: {e}"
-        print(err_msg)
-        send_notification("sync_warning", err_msg)
-        return {"status": "failed", "error": err_msg}
-
-    try:
         content = {}
         raw_data = ""
         file_exists = False
@@ -212,10 +285,7 @@ def export_remote_opencode_config(models: list) -> Dict[str, Any]:
         except FileNotFoundError:
             content = {"$schema": "https://opencode.ai/config.json"}
         except Exception as e:
-            err_msg = f"Error reading remote opencode config: {e}"
-            print(err_msg)
-            send_notification("sync_warning", err_msg)
-            return {"status": "failed", "error": err_msg}
+            raise RuntimeError(f"Error reading remote opencode config: {e}")
 
         if "provider" not in content or not isinstance(content["provider"], dict):
             content["provider"] = {}
@@ -275,7 +345,7 @@ def export_remote_opencode_config(models: list) -> Dict[str, Any]:
                 with sftp.open(bak_path, "w") as bak_f:
                     bak_f.write(raw_data)
             except Exception as be:
-                print(f"Warning: Failed to create remote backup file {bak_path}: {be}")
+                print(f"Warning [{target_host}]: Failed to create remote backup file {bak_path}: {be}")
 
         # Write to tmp file
         with sftp.open(tmp_path, "w") as tmp_f:
@@ -290,15 +360,11 @@ def export_remote_opencode_config(models: list) -> Dict[str, Any]:
         sftp.rename(tmp_path, config_path)
 
         return {
+            "host": target_host,
             "status": "success",
             "remote_path": config_path,
             "models_count": len(opencode_models)
         }
-    except Exception as e:
-        err_msg = f"Failed to sync remote opencode config: {e}"
-        print(err_msg)
-        send_notification("sync_warning", err_msg)
-        return {"status": "failed", "error": err_msg}
     finally:
         if sftp:
             try:
@@ -310,6 +376,76 @@ def export_remote_opencode_config(models: list) -> Dict[str, Any]:
                 client.close()
             except Exception:
                 pass
+
+def export_remote_opencode_config(models: list) -> Dict[str, Any]:
+    """Sync active LiteLLM models and optional plugin configuration to remote host(s) over SSH."""
+    enabled_str = str(get_app_setting("OPENCODE_REMOTE_ENABLED", "false")).lower()
+    if enabled_str not in ("true", "1", "yes"):
+        return {"status": "skipped", "reason": "remote_sync_disabled"}
+
+    config_path = (get_app_setting("OPENCODE_REMOTE_CONFIG_PATH", "") or "").strip()
+    if not config_path:
+        return {"status": "skipped", "reason": "missing_remote_config_path"}
+
+    hosts_raw = (get_app_setting("OPENCODE_REMOTE_HOST", "") or "").strip()
+    hosts = [h.strip() for h in hosts_raw.split(",") if h.strip()]
+    if not hosts:
+        hosts = [""]
+
+    plugin_path = (get_app_setting("OPENCODE_REMOTE_PLUGIN_PATH", "") or "").strip()
+    valid_models_count = len([m for m in models if m.get("model_name") and not m.get("model_name", "").endswith("*")])
+
+    results = []
+    successes = []
+    failures = []
+
+    for target_host in hosts:
+        try:
+            res = sync_single_remote_host(
+                target_host=target_host,
+                models=models,
+                config_path=config_path,
+                plugin_path=plugin_path
+            )
+            results.append(res)
+            if res.get("status") == "success":
+                successes.append(target_host)
+            else:
+                failures.append(f"{target_host}: {res.get('error', 'unknown error')}")
+        except Exception as e:
+            err_msg = f"{target_host}: {e}"
+            failures.append(err_msg)
+            results.append({"host": target_host, "status": "failed", "error": str(e)})
+
+    if failures:
+        warning_msg = f"Remote OpenCode sync warning: {'; '.join(failures)}"
+        print(warning_msg)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.run_coroutine_threadsafe(send_notification("sync_warning", warning_msg), loop)
+            else:
+                loop.run_until_complete(send_notification("sync_warning", warning_msg))
+        except Exception:
+            pass
+
+    if successes and not failures:
+        status = "success"
+    elif successes and failures:
+        status = "partial"
+    else:
+        status = "failed"
+
+    return {
+        "status": status,
+        "remote_path": config_path,
+        "hosts": hosts,
+        "success_hosts": successes,
+        "failed_hosts": failures,
+        "results": results,
+        "models_count": valid_models_count
+    }
+
 
 def export_librechat_config(models: list, target_paths: Optional[List[str]] = None) -> Dict[str, Any]:
     """Sync active LiteLLM models and token limits into librechat.yaml configurations."""
