@@ -173,3 +173,81 @@ def test_export_remote_opencode_config_merge_and_atomic_write():
 
         # 4. google-agy in enabled_providers
         assert "google-agy" in updated_data["enabled_providers"]
+
+def test_test_remote_opencode_connection_multi_host():
+    mock_client = MagicMock()
+    mock_sftp = MagicMock()
+    mock_sftp.stat.return_value = MagicMock()
+
+    with patch("app.sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
+        res = run_test_remote_opencode_connection(
+            host="10.0.0.21, 10.0.0.196",
+            port=22,
+            user="testuser"
+        )
+        assert res["status"] == "success"
+        assert "Successfully authenticated to all 2 hosts" in res["message"]
+        assert len(res["hosts"]) == 2
+
+def test_test_remote_opencode_connection_multi_host_partial():
+    def mock_connect(host=None, **kwargs):
+        if host == "10.0.0.196":
+            raise Exception("Host offline")
+        return MagicMock(), MagicMock()
+
+    with patch("app.sync.get_remote_ssh_connection", side_effect=mock_connect):
+        res = run_test_remote_opencode_connection(
+            host="10.0.0.21, 10.0.0.196",
+            port=22,
+            user="testuser"
+        )
+        assert res["status"] == "error"
+        assert "Connected to 1/2 hosts" in res["message"]
+        assert "10.0.0.196 (Host offline)" in res["message"]
+
+def test_export_remote_opencode_config_multi_host_success():
+    mock_sync_single = MagicMock(side_effect=lambda target_host, **kwargs: {
+        "host": target_host, "status": "success", "remote_path": kwargs.get("config_path"), "models_count": 1
+    })
+
+    settings_map = {
+        "OPENCODE_REMOTE_ENABLED": "true",
+        "OPENCODE_REMOTE_HOST": "10.0.0.21, 10.0.0.196",
+        "OPENCODE_REMOTE_CONFIG_PATH": "C:/Users/test/.config/opencode/opencode.json"
+    }
+
+    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
+         patch("app.sync.sync_single_remote_host", mock_sync_single):
+
+        models = [{"model_name": "gemini-3.1-pro"}]
+        res = export_remote_opencode_config(models)
+        assert res["status"] == "success"
+        assert res["hosts"] == ["10.0.0.21", "10.0.0.196"]
+        assert res["success_hosts"] == ["10.0.0.21", "10.0.0.196"]
+        assert len(res["failed_hosts"]) == 0
+        assert mock_sync_single.call_count == 2
+
+def test_export_remote_opencode_config_multi_host_failsafe_partial():
+    def mock_sync(target_host, **kwargs):
+        if target_host == "10.0.0.196":
+            raise ConnectionError("Host unreachable")
+        return {"host": target_host, "status": "success", "remote_path": kwargs.get("config_path"), "models_count": 1}
+
+    settings_map = {
+        "OPENCODE_REMOTE_ENABLED": "true",
+        "OPENCODE_REMOTE_HOST": "10.0.0.21, 10.0.0.196",
+        "OPENCODE_REMOTE_CONFIG_PATH": "C:/Users/test/.config/opencode/opencode.json"
+    }
+
+    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
+         patch("app.sync.sync_single_remote_host", side_effect=mock_sync), \
+         patch("app.sync.send_notification") as mock_notify:
+
+        models = [{"model_name": "gemini-3.1-pro"}]
+        res = export_remote_opencode_config(models)
+        # Should fail safely with partial status and not crash
+        assert res["status"] == "partial"
+        assert res["success_hosts"] == ["10.0.0.21"]
+        assert "10.0.0.196: Host unreachable" in res["failed_hosts"]
+        assert mock_notify.called
+
