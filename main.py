@@ -103,6 +103,11 @@ async def periodic_health_monitor():
             print(f"Error in periodic health monitor: {e}")
             await asyncio.sleep(600)
 
+from starlette.routing import Route
+
+mcp_sse_app = mcp.http_app(transport="sse")
+mcp_http_app = mcp.http_app(transport="http")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -113,7 +118,9 @@ async def lifespan(app: FastAPI):
     # Start periodic health monitor
     monitor_task = asyncio.create_task(periodic_health_monitor())
     try:
-        yield
+        async with mcp_sse_app.lifespan(app):
+            async with mcp_http_app.lifespan(app):
+                yield
     finally:
         monitor_task.cancel()
 
@@ -127,9 +134,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount FastMCP endpoints for Streamable HTTP and SSE protocols
-app.mount("/mcp", mcp.http_app(transport="http"))
-app.mount("/sse", mcp.http_app(transport="sse"))
+# Register FastMCP routes directly for clean canonical paths (/sse, /messages, /mcp)
+for route in mcp_sse_app.routes:
+    app.router.routes.append(route)
+    if hasattr(route, "path") and route.path == "/sse":
+        app.router.routes.append(Route("/sse/", endpoint=route.endpoint, methods=route.methods))
+        app.router.routes.append(Route("/sse/sse", endpoint=route.endpoint, methods=route.methods))
+
+for route in mcp_http_app.routes:
+    app.router.routes.append(route)
+    if hasattr(route, "path") and route.path == "/mcp":
+        app.router.routes.append(Route("/mcp/", endpoint=route.endpoint, methods=route.methods))
+        app.router.routes.append(Route("/mcp/mcp", endpoint=route.endpoint, methods=route.methods))
 
 static_dir = os.path.join(os.path.dirname(__file__), "app", "static")
 if os.path.isdir(static_dir):

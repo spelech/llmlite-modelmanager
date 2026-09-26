@@ -195,3 +195,33 @@ async def test_add_and_remove_local_models_preserves_id():
         assert res_remove["status"] == "success"
         mock_sync.assert_called_once_with([])
 
+
+@patch("main.initial_load_models", new_callable=AsyncMock)
+def test_fastmcp_routes_and_clean_paths(mock_load):
+    from main import app
+    from fastapi.testclient import TestClient
+
+    route_paths = [r.path for r in app.routes if hasattr(r, "path")]
+    assert "/sse" in route_paths
+    assert "/sse/" in route_paths
+    assert "/mcp" in route_paths
+    assert "/mcp/" in route_paths
+    assert "/messages" in route_paths
+
+    client = TestClient(app)
+    with client:
+        # Test Streamable HTTP init on /mcp
+        res = client.post("/mcp", headers={"Accept": "application/json, text/event-stream"}, json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0"}
+            }
+        })
+        assert res.status_code == 200
+        assert "result" in res.text
+
+
