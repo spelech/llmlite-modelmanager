@@ -7,8 +7,14 @@ def test_export_opencode_config(tmp_path):
     target_file = tmp_path / "opencode.jsonc"
     target_file.write_text(json.dumps({
         "$schema": "https://opencode.ai/config.json",
-        "mcp": {"mcp-router": {"type": "remote", "url": "http://10.0.0.10:8026/sse"}},
-        "provider": {"litellm": {"options": {"baseURL": "http://10.0.0.10:8448/v1"}, "models": {}}}
+        "mcp": {"servers": {"mcp-router": {"type": "remote", "url": "http://10.0.0.10:8026/sse"}}},
+        "providers": {
+            "litellm": {
+                "package": "@opencode/ai/providers/openai-compatible",
+                "settings": {"baseURL": "http://10.0.0.10:8448/v1"},
+                "models": {}
+            }
+        }
     }))
     
     mock_models = [
@@ -21,8 +27,9 @@ def test_export_opencode_config(tmp_path):
     export_opencode_config(mock_models, target_path=str(target_file))
     
     data = json.loads(target_file.read_text())
-    assert "gemini-2.5-flash" in data["provider"]["litellm"]["models"]
-    assert data["provider"]["litellm"]["models"]["gemini-2.5-flash"]["limit"]["context"] == 1000000
+    assert "providers" in data
+    assert "gemini-2.5-flash" in data["providers"]["litellm"]["models"]
+    assert data["providers"]["litellm"]["models"]["gemini-2.5-flash"]["limit"]["context"] == 1000000
 
 
 def test_export_opencode_config_preserves_custom_models_and_settings(tmp_path):
@@ -33,7 +40,7 @@ def test_export_opencode_config_preserves_custom_models_and_settings(tmp_path):
         "small_model": "litellm/gemini-3.5-flash-lite",
         "enabled_providers": ["litellm", "google-agy"],
         "disabled_providers": ["google-vertex", "openrouter"],
-        "mcp": {"mcg": {"type": "remote", "url": "http://10.0.0.10:8026/sse"}},
+        "mcp": {"servers": {"mcg": {"type": "remote", "url": "http://10.0.0.10:8026/sse"}}},
         "provider": {
             "litellm": {
                 "npm": "@ai-sdk/openai-compatible",
@@ -73,15 +80,23 @@ def test_export_opencode_config_preserves_custom_models_and_settings(tmp_path):
     export_opencode_config(mock_synced_models, target_path=str(target_file))
 
     result = json.loads(target_file.read_text())
-    # 1. Top-level keys preserved
+    # 1. Top-level keys preserved and provider upgraded to providers
     assert result["model"] == "litellm/vertex/gemini-3.8-flash"
     assert result["small_model"] == "litellm/gemini-3.5-flash-lite"
     assert result["enabled_providers"] == ["litellm", "google-agy"]
     assert result["disabled_providers"] == ["google-vertex", "openrouter"]
-    assert result["provider"]["litellm"]["options"]["apiKey"] == "sk-testkey"
+    assert "providers" in result
+    assert "provider" not in result
+    
+    litellm = result["providers"]["litellm"]
+    assert litellm["package"] == "@opencode/ai/providers/openai-compatible"
+    assert litellm["settings"]["baseURL"] == "http://10.0.0.10:8448/v1"
+    assert litellm["settings"]["apiKey"] == "sk-testkey"
+    assert "npm" not in litellm
+    assert "options" not in litellm
 
     # 2. Custom unmanaged model alias preserved
-    models = result["provider"]["litellm"]["models"]
+    models = litellm["models"]
     assert "custom-fast-alias" in models
     assert models["custom-fast-alias"]["custom_field"] == "preserved"
 
@@ -94,4 +109,3 @@ def test_export_opencode_config_preserves_custom_models_and_settings(tmp_path):
     # 4. New model added
     assert "deepseek-v4-flash" in models
     assert models["deepseek-v4-flash"]["limit"]["context"] == 1310720
-

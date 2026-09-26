@@ -158,18 +158,26 @@ def test_export_remote_opencode_config_merge_and_atomic_write():
         # Check target config content
         updated_data = json.loads(remote_files["C:/Users/test/.config/opencode/opencode.json"].decode("utf-8"))
         
-        # 1. Preserved existing fields
-        assert updated_data["provider"]["litellm"]["options"]["apiKey"] == "sk-secret-existing"
+        # 1. Upgraded to V2 providers
+        assert "providers" in updated_data
+        assert "provider" not in updated_data
+        litellm = updated_data["providers"]["litellm"]
+        assert litellm["package"] == "@opencode/ai/providers/openai-compatible"
+        assert litellm["settings"]["baseURL"] == "http://10.0.0.10:8448/v1"
+        assert litellm["settings"]["apiKey"] == "sk-secret-existing"
+        assert "options" not in litellm
+        assert "npm" not in litellm
         assert "mcp-router" in updated_data["mcp"]
-        assert "old-model" in updated_data["provider"]["litellm"]["models"]
+        assert "old-model" in litellm["models"]
 
         # 2. Updated new model
-        assert "gemini-2.5-pro" in updated_data["provider"]["litellm"]["models"]
-        assert updated_data["provider"]["litellm"]["models"]["gemini-2.5-pro"]["limit"]["context"] == 2000000
+        assert "gemini-2.5-pro" in litellm["models"]
+        assert litellm["models"]["gemini-2.5-pro"]["limit"]["context"] == 2000000
 
-        # 3. Plugin registration & forward slash normalization
-        assert "plugin" in updated_data
-        assert "C:/Users/test/repos/opencode-agy-auth" in updated_data["plugin"]
+        # 3. Plugin registration & forward slash normalization into plugins
+        assert "plugins" in updated_data
+        assert "plugin" not in updated_data
+        assert "C:/Users/test/repos/opencode-agy-auth" in updated_data["plugins"]
 
         # 4. google-agy in enabled_providers
         assert "google-agy" in updated_data["enabled_providers"]
