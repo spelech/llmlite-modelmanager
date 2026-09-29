@@ -621,7 +621,6 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                     "capabilities": m_data.get("capabilities", {}),
                     "benchmarks": m_data.get("benchmarks", {}),
                     "brand": m_data.get("brand", "ollama"),
-                    "tier": "cheap",
                     "pricing_tier": "cheap"
                 }
             }
@@ -639,7 +638,6 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                     "capabilities": m_data.get("capabilities", {}),
                     "benchmarks": m_data.get("benchmarks", {}),
                     "brand": m_data.get("brand", "other"),
-                    "tier": tier_val,
                     "pricing_tier": tier_val
                 }
             }
