@@ -139,4 +139,4 @@ async def test_sync_models_includes_benchmarks(tmp_path):
         m_info = written_cfg["model_list"][0]["model_info"]
         assert "benchmarks" in m_info
         assert m_info["benchmarks"]["coding"] == 78.0
-        assert m_info["tier"] == "moderate"
+        assert m_info["pricing_tier"] == "moderate"
