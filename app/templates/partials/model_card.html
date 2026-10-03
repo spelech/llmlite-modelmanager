@@ -2,9 +2,13 @@
 {% set brand = provider_brand if provider_brand is defined and provider_brand is not none else (m.brand | default('google' if provider_name == 'vertex' else ('ollama' if provider_name == 'local' else 'other'))) %}
 {% set default_tier = 'cheap' if provider_name == 'local' else 'moderate' %}
 {% set tier = m.tier | default(default_tier) %}
-{% set in_price = m.pricing.prompt_1m if (m.pricing and m.pricing.prompt_1m is not none) else 0 %}
-{% set out_price = m.pricing.completion_1m if (m.pricing and m.pricing.completion_1m is not none) else 0 %}
+{% set is_router = (m.pricing and m.pricing.is_dynamic_router) or (m.pricing and (m.pricing.prompt < 0 or m.pricing.completion < 0)) or ('router' in m.id | lower and provider_name == 'openrouter') %}
+{% set in_price = 0 if is_router else (m.pricing.prompt_1m if (m.pricing and m.pricing.prompt_1m is not none) else 0) %}
+{% set out_price = 0 if is_router else (m.pricing.completion_1m if (m.pricing and m.pricing.completion_1m is not none) else 0) %}
 {% set total_price = in_price + out_price %}
+{% set price_change_pct = m.price_change_pct | default(0) %}
+{% set price_drop = m.price_change_direction == 'drop' %}
+{% set first_seen = m.first_seen | default(0) %}
 <div class="model-item" 
      data-name="{{ m.name | lower }}" 
      data-id="{{ m.id | lower }}"
@@ -15,6 +19,10 @@
      data-price="{{ total_price }}"
      data-in-price="{{ in_price }}"
      data-out-price="{{ out_price }}"
+     data-router="{{ 'true' if is_router else 'false' }}"
+     data-first-seen="{{ first_seen }}"
+     data-price-drop="{{ 'true' if price_drop else 'false' }}"
+     data-price-changed="{{ 'true' if m.price_last_changed else 'false' }}"
      data-coding="{{ m.benchmarks.coding if m.benchmarks and m.benchmarks.coding is not none else '' }}"
      data-intel="{{ m.benchmarks.intelligence if m.benchmarks and m.benchmarks.intelligence is not none else '' }}"
      data-agentic="{{ m.benchmarks.agentic if m.benchmarks and m.benchmarks.agentic is not none else '' }}"
@@ -36,12 +44,22 @@
                 <span class="model-name" title="{{ m.name }}">{{ m.name }}</span>
                 <span class="model-brand">{{ brand }}</span>
                 <span class="provider-tag provider-{{ provider_name }}">{{ provider_tag }}</span>
+                {% if is_router %}
+                <span class="badge-chip badge-router" title="Dynamic Multi-Model Router">⚡ Router</span>
+                {% endif %}
+                {% if price_drop %}
+                <span class="badge-chip badge-drop" title="Price reduced by {{ price_change_pct }}%">📉 {{ price_change_pct }}%</span>
+                {% elif m.price_change_direction == 'hike' %}
+                <span class="badge-chip badge-hike" title="Price adjusted by +{{ price_change_pct }}%">📈 +{{ price_change_pct }}%</span>
+                {% endif %}
             </div>
             <button type="button" class="btn-test" onclick="testModel('{{ m.id }}')">Test</button>
         </div>
         <div class="model-id" title="{{ m.id }}">{{ m.id }}</div>
         <div class="model-meta-row">
-            {% if provider_name == 'local' and total_price == 0 %}
+            {% if is_router %}
+            <span class="model-pricing" style="color: #38bdf8; font-weight: 700;">⚡ Dynamic · Router</span>
+            {% elif provider_name == 'local' and total_price == 0 %}
             <span class="model-pricing" style="color: var(--success);">$0.00 / 1M · Free</span>
             {% else %}
             <span class="model-pricing">${{ "%.2f"|format(in_price) }} / ${{ "%.2f"|format(out_price) }}</span>

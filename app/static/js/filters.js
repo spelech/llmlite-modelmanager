@@ -45,6 +45,16 @@ function sortList(listId, sortOrder) {
 
         if (sortOrder === 'popularity') {
             return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
+        } else if (sortOrder === 'newest') {
+            const fsA = parseFloat(a.dataset.firstSeen || 0);
+            const fsB = parseFloat(b.dataset.firstSeen || 0);
+            if (fsB !== fsA) return fsB - fsA;
+            return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
+        } else if (sortOrder === 'priceDrops') {
+            const dropA = a.dataset.priceDrop === 'true' ? 1 : 0;
+            const dropB = b.dataset.priceDrop === 'true' ? 1 : 0;
+            if (dropB !== dropA) return dropB - dropA;
+            return parseInt(a.dataset.popularity || 9999) - parseInt(b.dataset.popularity || 9999);
         } else if (sortOrder === 'codingDesc') {
             const sA = a.dataset.coding !== undefined && a.dataset.coding !== '' ? parseFloat(a.dataset.coding) : -1;
             const sB = b.dataset.coding !== undefined && b.dataset.coding !== '' ? parseFloat(b.dataset.coding) : -1;
@@ -116,6 +126,9 @@ function applyAllFilters() {
     const audOut = document.getElementById('capAudioOut')?.checked || false;
     const func = document.getElementById('capFunc')?.checked || false;
     const onlySelected = document.getElementById('filterSelected')?.checked || false;
+    const filterNewOnly = document.getElementById('filterNewOnly')?.checked || false;
+    const filterPriceChanges = document.getElementById('filterPriceChanges')?.checked || false;
+    const filterRoutersOnly = document.getElementById('filterRoutersOnly')?.checked || false;
 
     // Prepare Wildcard / Regex
     let regex = null;
@@ -219,6 +232,13 @@ function applyAllFilters() {
         if (visible && audOut && !iAudOut) visible = false;
         if (visible && func && !iFunc) visible = false;
         if (visible && onlySelected && !isSelected) visible = false;
+        if (visible && filterRoutersOnly && item.dataset.router !== 'true') visible = false;
+        if (visible && filterPriceChanges && item.dataset.priceDrop !== 'true') visible = false;
+        if (visible && filterNewOnly) {
+            const fs = parseFloat(item.dataset.firstSeen || 0);
+            const nowSec = Date.now() / 1000;
+            if (!fs || (nowSec - fs) > (7 * 86400)) visible = false;
+        }
 
         item.style.display = visible ? 'flex' : 'none';
 

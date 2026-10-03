@@ -523,6 +523,10 @@ def export_librechat_config(models: list, target_paths: Optional[List[str]] = No
                     p_prompt = 0.0
                     p_completion = 0.0
 
+            # Clamp negative rates for tokenConfig
+            p_prompt = max(0.0, p_prompt)
+            p_completion = max(0.0, p_completion)
+
             model_list.append(m_name)
             token_config[m_name] = {
                 "prompt": round(p_prompt, 4),
@@ -626,13 +630,20 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
             }
         else:
             tier_val = m_data.get("tier", "moderate")
+            in_cost = float(pricing.get("prompt", 0) or 0)
+            out_cost = float(pricing.get("completion", 0) or 0)
+            if in_cost < 0 or pricing.get("is_dynamic_router"):
+                in_cost = 0.0
+            if out_cost < 0 or pricing.get("is_dynamic_router"):
+                out_cost = 0.0
+
             entry = {
                 "model_name": model_name,
                 "litellm_params": {"model": mid},
                 "model_info": {
                     "id": mid,
-                    "input_cost_per_token": pricing.get("prompt", 0),
-                    "output_cost_per_token": pricing.get("completion", 0),
+                    "input_cost_per_token": in_cost,
+                    "output_cost_per_token": out_cost,
                     "max_input_tokens": m_data.get("max_input_tokens", 0),
                     "max_output_tokens": m_data.get("max_output_tokens", 0),
                     "capabilities": m_data.get("capabilities", {}),

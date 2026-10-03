@@ -263,6 +263,15 @@ def test_static_css_variables():
     response = client.get("/static/css/variables.css")
     assert response.status_code == 200
 
+def test_api_models_updates():
+    response = client.get("/api/models/updates?limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "recent_new" in data
+    assert "price_changes" in data
+
+
 def test_static_js_columns():
     response = client.get("/static/js/columns.js")
     assert response.status_code == 200

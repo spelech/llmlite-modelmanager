@@ -8,12 +8,16 @@ def classify_model_tier(model: Dict) -> str:
     Dynamically classifies a model into 'cheap', 'moderate', or 'frontier'.
     Uses pricing per 1M tokens with capability/architecture heuristics.
     """
+    mid = model.get("id", "").lower()
+    name = model.get("name", "").lower()
     pricing = model.get("pricing", {})
     prompt_1m = pricing.get("prompt_1m", 0.0)
     
-    mid = model.get("id", "").lower()
-    name = model.get("name", "").lower()
-    
+    # Dynamic meta-routers (e.g. typesafe/jev-router, openrouter/auto)
+    is_router_name = any(k in name for k in ["router", "switchyard"]) or any(k in mid.split("/")[-1] for k in ["router", "auto", "switchyard", "fusion"])
+    if pricing.get("is_dynamic_router") or is_router_name:
+        return "moderate"
+
     # Check explicit price bands first if available
     if prompt_1m > 0:
         if prompt_1m <= 0.30:
@@ -36,21 +40,28 @@ def classify_model_tier(model: Dict) -> str:
 
 async def process_and_track_discovered_models(all_models: List[Dict], notify: bool = True) -> List[Dict]:
     """
-    Tags models with their computed tier, stores them in SQLite, and fires alerts for new notable models.
+    Tags models with their computed tier, stores them in SQLite, and fires alerts for new notable models and price changes.
     """
     for m in all_models:
         m["tier"] = classify_model_tier(m)
         
-    new_models = await upsert_discovered_models(all_models)
+    upsert_res = await upsert_discovered_models(all_models)
+    new_models = upsert_res.get("new_models", [])
+    price_changed = upsert_res.get("price_changed_models", [])
     
-    if new_models and notify:
-        # Filter for notable models (top popularity on OpenRouter, or Google/Anthropic/OpenAI/DeepSeek/Meta)
-        notable_brands = {"google", "anthropic", "openai", "deepseek", "meta-llama", "mistralai", "x-ai", "qwen"}
-        notable = [
-            m for m in new_models
-            if m.get("popularity", 999) <= 120 or m.get("brand", "").lower() in notable_brands or m.get("tier") == "frontier"
-        ]
-        if notable:
-            await notify_new_trending_models(notable)
+    if notify:
+        if new_models:
+            # Filter for notable models (top popularity on OpenRouter, or Google/Anthropic/OpenAI/DeepSeek/Meta)
+            notable_brands = {"google", "anthropic", "openai", "deepseek", "meta-llama", "mistralai", "x-ai", "qwen"}
+            notable = [
+                m for m in new_models
+                if m.get("popularity", 999) <= 120 or m.get("brand", "").lower() in notable_brands or m.get("tier") == "frontier"
+            ]
+            if notable:
+                await notify_new_trending_models(notable)
+
+        if price_changed:
+            from app.notifications import notify_price_changes
+            await notify_price_changes(price_changed)
             
     return new_models

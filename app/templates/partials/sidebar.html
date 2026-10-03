@@ -5,6 +5,8 @@
         <span class="filter-label">Sort By</span>
         <select id="sortOrder" onchange="applyAllFilters()" style="width: 100%; padding: 8px; border-radius: 4px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);">
             <option value="popularity">Popularity (Most Popular)</option>
+            <option value="newest">✨ Recently Added (Newest)</option>
+            <option value="priceDrops">📉 Price Drops First</option>
             <option value="codingDesc">💻 Coding Score (High to Low)</option>
             <option value="intelDesc">🧠 Intelligence Score (High to Low)</option>
             <option value="agenticDesc">🤖 Agentic Score (High to Low)</option>
@@ -21,6 +23,15 @@
             <label class="checkbox-item"><input type="checkbox" id="provOpenRouter" value="openrouter" checked onchange="applyAllFilters()"> OpenRouter</label>
             <label class="checkbox-item"><input type="checkbox" id="provVertex" value="vertex" checked onchange="applyAllFilters()"> Vertex AI</label>
             <label class="checkbox-item"><input type="checkbox" id="provLocal" value="local" checked onchange="applyAllFilters()"> Local / Ollama</label>
+        </div>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Discovery & Updates</span>
+        <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" id="filterNewOnly" onchange="applyAllFilters()"> ✨ New (Last 7d)</label>
+            <label class="checkbox-item"><input type="checkbox" id="filterPriceChanges" onchange="applyAllFilters()"> 📉 Price Drops</label>
+            <label class="checkbox-item"><input type="checkbox" id="filterRoutersOnly" onchange="applyAllFilters()"> ⚡ Dynamic Routers</label>
         </div>
     </div>
 

@@ -120,7 +120,7 @@ async def test_sync_local_models_and_collision_disambiguation(tmp_path):
         assert local_qwen["model_info"]["input_cost_per_token"] == 0.0
         assert local_qwen["model_info"]["output_cost_per_token"] == 0.0
         assert local_qwen["model_info"]["max_input_tokens"] == 32768
-        assert local_qwen["model_info"]["tier"] == "cheap"
+        assert local_qwen["model_info"]["pricing_tier"] == "cheap"
         assert local_qwen["model_info"]["brand"] == "ollama"
         
         # Check vllm/openai engine litellm_params
@@ -160,5 +160,44 @@ async def test_sync_removeprefix_local_handling(tmp_path):
         assert model["model_name"] == "qwen2.5-coder:7b"
         assert model["litellm_params"]["model"] == "ollama_chat/qwen2.5-coder:7b"
         assert model["model_info"]["id"] == "local/qwen2.5-coder:7b"
+
+@pytest.mark.asyncio
+async def test_sync_dynamic_router_sanitizes_cost_per_token(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("model_list: []")
+
+    app_state["or_models"] = [
+        {
+            "id": "openrouter/typesafe/jev-router",
+            "name": "TypeSafe: Jev Router",
+            "brand": "typesafe",
+            "tier": "moderate",
+            "pricing": {
+                "prompt": -1.0,
+                "completion": -1.0,
+                "prompt_1m": -1000000.0,
+                "completion_1m": -1000000.0,
+                "is_dynamic_router": True
+            },
+            "max_input_tokens": 128000,
+            "max_output_tokens": 8192
+        }
+    ]
+    app_state["vx_models"] = []
+    app_state["local_models"] = []
+
+    with patch("app.sync.get_app_setting", side_effect=lambda key, default=None: str(config_file) if key == "LITELLM_CONFIG" else default), \
+         patch("app.sync.export_opencode_config", return_value=None):
+        res = await sync_models_internal(["openrouter/typesafe/jev-router"])
+        assert res["status"] == "success"
+
+        saved_cfg = yaml.safe_load(config_file.read_text())
+        model = saved_cfg["model_list"][0]
+        assert model["model_name"] == "jev-router"
+        assert model["litellm_params"]["model"] == "openrouter/typesafe/jev-router"
+        # Zeroed cost per token to prevent -$10K bug
+        assert model["model_info"]["input_cost_per_token"] == 0.0
+        assert model["model_info"]["output_cost_per_token"] == 0.0
+
 
 

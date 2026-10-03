@@ -1,6 +1,22 @@
 <header>
     <h1>LiteLLM Model Manager</h1>
     <div class="header-actions">
+        <select id="themeSelector" class="theme-selector" onchange="changeTheme(this.value)" title="Select UI Color Theme">
+            <option value="cyber-emerald" selected>🟢 Cyber Emerald</option>
+            <option value="slate-indigo">🟣 Slate Indigo</option>
+            <option value="neutral-zinc">⚪ Neutral Zinc</option>
+            <option value="autumn">🟠 Autumn</option>
+        </select>
+
+        <button type="button" class="btn-refresh" onclick="openModelUpdatesModal()" title="View recently added models and price drops">🔔 Updates</button>
+
+        <div id="openrouterBalanceBadge" style="display: none; align-items: center; padding: 4px 10px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; font-size: 0.85em; font-weight: 600; color: #60a5fa; cursor: pointer;" onclick="openSettings()" title="OpenRouter Prepaid Balance (Click to open settings)">
+            💳 <span id="openrouterBalanceVal" style="margin-left: 4px;">$--.--</span>
+        </div>
+        <div id="vertexSpendBadge" style="display: none; align-items: center; padding: 4px 10px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.85em; font-weight: 600; color: #34d399; cursor: pointer;" onclick="openSettings()" title="Google Vertex AI Month-to-Date Spend (Click to open settings)">
+            ⚡ <span id="vertexSpendVal" style="margin-left: 4px;">$--.--/mo</span>
+        </div>
+
         <button type="button" class="btn-refresh" onclick="exportSelections()">📤 Export Selection</button>
         <button type="button" class="btn-refresh" onclick="openImportModal()">📥 Import Selection</button>
         <button type="button" class="btn-refresh" onclick="forceRefresh()">Force Refresh Metadata</button>

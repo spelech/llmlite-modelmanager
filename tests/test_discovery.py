@@ -55,8 +55,47 @@ async def test_process_and_track_discovered_models():
     ]
     with patch("app.discovery.upsert_discovered_models", new_callable=AsyncMock) as mock_upsert, \
          patch("app.discovery.notify_new_trending_models", new_callable=AsyncMock) as mock_notify:
-        mock_upsert.return_value = sample_models
+        mock_upsert.return_value = {"new_models": sample_models, "price_changed_models": []}
         new_models = await process_and_track_discovered_models(sample_models, notify=True)
         assert len(new_models) == 1
         assert new_models[0]["tier"] == "cheap"
         mock_notify.assert_called_once()
+
+def test_classify_model_tier_for_dynamic_router():
+    router_model = {
+        "id": "openrouter/typesafe/jev-router",
+        "name": "TypeSafe: Jev Router",
+        "pricing": {"is_dynamic_router": True, "prompt_1m": 0.0, "completion_1m": 0.0}
+    }
+    assert classify_model_tier(router_model) == "moderate"
+
+@pytest.mark.asyncio
+async def test_process_and_track_discovered_models_fires_price_change_alert():
+    sample_models = [
+        {
+            "id": "openrouter/google/gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro",
+            "brand": "google",
+            "pricing": {"prompt_1m": 0.90, "completion_1m": 2.70},
+            "popularity": 10
+        }
+    ]
+    changed_models = [
+        {
+            "id": "openrouter/google/gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro",
+            "price_change_pct": -28.0,
+            "price_change_direction": "drop",
+            "prev_prompt_1m": 1.25,
+            "prev_completion_1m": 3.75,
+            "new_prompt_1m": 0.90,
+            "new_completion_1m": 2.70
+        }
+    ]
+    with patch("app.discovery.upsert_discovered_models", new_callable=AsyncMock) as mock_upsert, \
+         patch("app.notifications.notify_price_changes", new_callable=AsyncMock) as mock_price_notify:
+        mock_upsert.return_value = {"new_models": [], "price_changed_models": changed_models}
+        res = await process_and_track_discovered_models(sample_models, notify=True)
+        assert res == []
+        mock_price_notify.assert_called_once_with(changed_models)
+
