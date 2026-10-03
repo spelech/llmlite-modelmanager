@@ -83,7 +83,7 @@ header h1 { margin: 0; font-size: 1.2em; color: var(--accent); font-weight: 700;
                 background-color 0.2s;
 }
 .column:hover {
-    border-color: rgba(249, 115, 22, 0.35);
+    border-color: var(--accent-glow);
 }
 
 .column-header {
