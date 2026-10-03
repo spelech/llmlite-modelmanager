@@ -128,8 +128,8 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
 
 /* Selected Card Visual Highlight */
 .model-item.selected {
-    background: rgba(249, 115, 22, 0.12) !important;
-    border-color: rgba(249, 115, 22, 0.45) !important;
+    background: var(--accent-subtle) !important;
+    border-color: var(--accent-border) !important;
     border-left: 4px solid var(--accent) !important;
     box-shadow: 0 2px 10px var(--accent-glow);
 }
@@ -140,8 +140,8 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
 
 @media (prefers-color-scheme: light) {
     .model-item.selected {
-        background: rgba(234, 88, 12, 0.08) !important;
-        border-color: rgba(234, 88, 12, 0.45) !important;
+        background: var(--accent-subtle) !important;
+        border-color: var(--accent-border) !important;
         border-left: 4px solid var(--accent) !important;
     }
 }
@@ -201,9 +201,9 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     border: 1px solid rgba(163, 230, 53, 0.35);
 }
 .provider-openrouter {
-    background: rgba(249, 115, 22, 0.15);
-    color: var(--accent);
-    border: 1px solid rgba(249, 115, 22, 0.35);
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
 }
 .provider-vertex {
     background: rgba(59, 130, 246, 0.15);
@@ -233,7 +233,7 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
 
 .capabilities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .cap-tag { font-size: 0.62em; background: var(--bg-input); padding: 2px 7px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 600; border: 1px solid var(--border-subtle);}
-.cap-tag.active { background: rgba(249, 115, 22, 0.18); color: var(--accent); border-color: rgba(249, 115, 22, 0.4); }
+.cap-tag.active { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent-border); }
 
 /* Benchmark Badges */
 .benchmark-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
@@ -253,9 +253,9 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     border: 1px solid rgba(163, 230, 53, 0.35);
 }
 .score-mid {
-    background: rgba(245, 158, 11, 0.15);
-    color: var(--warning);
-    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: var(--tier-moderate-bg);
+    color: var(--tier-moderate-color);
+    border: 1px solid var(--tier-moderate-border);
 }
 .score-low {
     background: rgba(156, 138, 119, 0.15);
@@ -278,9 +278,9 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     border: 1px solid rgba(239, 68, 68, 0.35);
 }
 .tier-moderate {
-    background: rgba(245, 158, 11, 0.15);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: var(--tier-moderate-bg);
+    color: var(--tier-moderate-color);
+    border: 1px solid var(--tier-moderate-border);
 }
 .tier-cheap {
     background: rgba(163, 230, 53, 0.15);
@@ -290,11 +290,12 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
 
 @media (prefers-color-scheme: light) {
     .tier-frontier { color: #b91c1c; border-color: rgba(185, 28, 28, 0.35); }
-    .tier-moderate { color: #b45309; border-color: rgba(180, 83, 9, 0.35); }
+    .tier-moderate { color: var(--tier-moderate-color); border-color: var(--tier-moderate-border); }
     .tier-cheap { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
     .provider-local { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
     .provider-vertex { color: #1d4ed8; border-color: rgba(29, 78, 216, 0.35); }
-    .cap-tag.active { background: rgba(234, 88, 12, 0.12); color: var(--accent); border-color: rgba(234, 88, 12, 0.35); }
+    .provider-openrouter { color: #9333ea; border-color: rgba(147, 51, 234, 0.35); }
+    .cap-tag.active { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent-border); }
 }
 
 /* Buttons */
