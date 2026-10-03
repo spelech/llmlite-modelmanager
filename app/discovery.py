@@ -14,7 +14,9 @@ def classify_model_tier(model: Dict) -> str:
     prompt_1m = pricing.get("prompt_1m", 0.0)
     
     # Dynamic meta-routers (e.g. typesafe/jev-router, openrouter/auto)
-    is_router_name = any(k in name for k in ["router", "switchyard"]) or any(k in mid.split("/")[-1] for k in ["router", "auto", "switchyard", "fusion"])
+    known_routers = {"jev-router", "auto", "switchyard", "fusion"}
+    model_slug = mid.split("/")[-1]
+    is_router_name = (model_slug in known_routers) or ("router" in model_slug)
     if pricing.get("is_dynamic_router") or is_router_name:
         return "moderate"
 

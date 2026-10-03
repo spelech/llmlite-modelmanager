@@ -196,8 +196,9 @@ async def test_add_and_remove_local_models_preserves_id():
         mock_sync.assert_called_once_with([])
 
 
+@patch("main.periodic_health_monitor", new_callable=AsyncMock)
 @patch("main.initial_load_models", new_callable=AsyncMock)
-def test_fastmcp_routes_and_clean_paths(mock_load):
+def test_fastmcp_routes_and_clean_paths(mock_load, mock_monitor):
     from main import app
     from fastapi.testclient import TestClient
 
