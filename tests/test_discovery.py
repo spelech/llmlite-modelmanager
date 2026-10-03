@@ -99,3 +99,35 @@ async def test_process_and_track_discovered_models_fires_price_change_alert():
         assert res == []
         mock_price_notify.assert_called_once_with(changed_models)
 
+def test_model_card_router_detection():
+    from jinja2 import Environment, FileSystemLoader
+    env = Environment(loader=FileSystemLoader("app/templates"))
+    tmpl = env.from_string("""
+    {% from 'partials/model_card.html' import render_model_card %}
+    {{ render_model_card(model, provider, provider.upper(), model.brand) }}
+    """)
+
+    # Standard model on OpenRouter should NOT be flagged as router
+    deepseek = {
+        "id": "openrouter/deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "brand": "deepseek",
+        "pricing": {"prompt": 0.0000003, "completion": 0.0000012, "prompt_1m": 0.3, "completion_1m": 1.2, "is_dynamic_router": False}
+    }
+    rendered_deepseek = tmpl.render(model=deepseek, provider="openrouter")
+    assert 'data-router="false"' in rendered_deepseek
+    assert '⚡ Router' not in rendered_deepseek
+    assert '⚡ Dynamic · Router' not in rendered_deepseek
+
+    # Actual dynamic router on OpenRouter SHOULD be flagged
+    jev = {
+        "id": "openrouter/typesafe/jev-router",
+        "name": "TypeSafe JEV",
+        "brand": "typesafe",
+        "pricing": {"prompt": -1, "completion": -1, "prompt_1m": 0, "completion_1m": 0, "is_dynamic_router": True}
+    }
+    rendered_jev = tmpl.render(model=jev, provider="openrouter")
+    assert 'data-router="true"' in rendered_jev
+    assert '⚡ Router' in rendered_jev
+    assert '⚡ Dynamic · Router' in rendered_jev
+

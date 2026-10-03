@@ -196,18 +196,18 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     flex-shrink: 0;
 }
 .provider-local {
-    background: rgba(163, 230, 53, 0.15);
-    color: var(--success);
-    border: 1px solid rgba(163, 230, 53, 0.35);
+    background: rgba(52, 211, 153, 0.15);
+    color: #6ee7b7;
+    border: 1px solid rgba(52, 211, 153, 0.35);
 }
 .provider-openrouter {
     background: rgba(168, 85, 247, 0.15);
-    color: #c084fc;
+    color: #d8b4fe;
     border: 1px solid rgba(168, 85, 247, 0.35);
 }
 .provider-vertex {
     background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    color: #93c5fd;
     border: 1px solid rgba(59, 130, 246, 0.35);
 }
 .model-id { 
@@ -233,7 +233,7 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
 
 .capabilities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .cap-tag { font-size: 0.62em; background: var(--bg-input); padding: 2px 7px; border-radius: var(--radius-pill); color: var(--text-dim); text-transform: uppercase; font-weight: 600; border: 1px solid var(--border-subtle);}
-.cap-tag.active { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent-border); }
+.cap-tag.active { background: var(--accent-subtle); color: var(--accent-hover); border-color: var(--accent-border); }
 
 /* Benchmark Badges */
 .benchmark-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
@@ -248,9 +248,9 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     letter-spacing: 0.2px;
 }
 .score-high {
-    background: rgba(163, 230, 53, 0.15);
-    color: var(--success);
-    border: 1px solid rgba(163, 230, 53, 0.35);
+    background: rgba(52, 211, 153, 0.15);
+    color: #6ee7b7;
+    border: 1px solid rgba(52, 211, 153, 0.35);
 }
 .score-mid {
     background: var(--tier-moderate-bg);
@@ -273,9 +273,9 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     flex-shrink: 0;
 }
 .tier-frontier {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(244, 63, 94, 0.15);
+    color: #fda4af;
+    border: 1px solid rgba(244, 63, 94, 0.35);
 }
 .tier-moderate {
     background: var(--tier-moderate-bg);
@@ -283,29 +283,19 @@ input[type="range"] { height: 24px; cursor: pointer; accent-color: var(--accent)
     border: 1px solid var(--tier-moderate-border);
 }
 .tier-cheap {
-    background: rgba(163, 230, 53, 0.15);
-    color: #a3e635;
-    border: 1px solid rgba(163, 230, 53, 0.35);
-}
-
-@media (prefers-color-scheme: light) {
-    .tier-frontier { color: #b91c1c; border-color: rgba(185, 28, 28, 0.35); }
-    .tier-moderate { color: var(--tier-moderate-color); border-color: var(--tier-moderate-border); }
-    .tier-cheap { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
-    .provider-local { color: #15803d; border-color: rgba(21, 128, 61, 0.35); }
-    .provider-vertex { color: #1d4ed8; border-color: rgba(29, 78, 216, 0.35); }
-    .provider-openrouter { color: #9333ea; border-color: rgba(147, 51, 234, 0.35); }
-    .cap-tag.active { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent-border); }
+    background: rgba(52, 211, 153, 0.15);
+    color: #6ee7b7;
+    border: 1px solid rgba(52, 211, 153, 0.35);
 }
 
 /* Buttons */
 button { cursor: pointer; border: none; border-radius: var(--radius-pill); transition: opacity 0.2s, background-color 0.2s, transform 0.1s; font-weight: 600;}
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btn-test { background-color: var(--bg-input); color: var(--accent); padding: 3px 10px; font-size: 0.74em; flex-shrink: 0; border-radius: var(--radius-pill); border: 1px solid var(--border); font-weight: 600;}
+.btn-test { background-color: var(--bg-input); color: var(--accent-hover); padding: 3px 10px; font-size: 0.74em; flex-shrink: 0; border-radius: var(--radius-pill); border: 1px solid var(--border); font-weight: 600;}
 .btn-test:hover { background-color: var(--accent); color: var(--on-accent); }
 .btn-refresh { background-color: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; font-size: 0.78em; }
-.btn-refresh:hover { background-color: var(--bg-input); color: var(--accent); border-color: var(--accent); }
+.btn-refresh:hover { background-color: var(--bg-input); color: var(--accent-hover); border-color: var(--accent); }
 
 /* Floating Action Buttons */
 .fab-group {

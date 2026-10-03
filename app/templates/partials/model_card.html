@@ -2,7 +2,8 @@
 {% set brand = provider_brand if provider_brand is defined and provider_brand is not none else (m.brand | default('google' if provider_name == 'vertex' else ('ollama' if provider_name == 'local' else 'other'))) %}
 {% set default_tier = 'cheap' if provider_name == 'local' else 'moderate' %}
 {% set tier = m.tier | default(default_tier) %}
-{% set is_router = (m.pricing and m.pricing.is_dynamic_router) or (m.pricing and (m.pricing.prompt < 0 or m.pricing.completion < 0)) or ('router' in m.id | lower and provider_name == 'openrouter') %}
+{% set model_slug = m.id.split('/')[-1] if '/' in m.id else m.id %}
+{% set is_router = (m.pricing and m.pricing.is_dynamic_router) or (m.pricing and ((m.pricing.get('prompt', 0) < 0) or (m.pricing.get('completion', 0) < 0))) or (provider_name == 'openrouter' and ('router' in model_slug or model_slug in ['auto', 'fusion', 'switchyard'])) %}
 {% set in_price = 0 if is_router else (m.pricing.prompt_1m if (m.pricing and m.pricing.prompt_1m is not none) else 0) %}
 {% set out_price = 0 if is_router else (m.pricing.completion_1m if (m.pricing and m.pricing.completion_1m is not none) else 0) %}
 {% set total_price = in_price + out_price %}
