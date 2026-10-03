@@ -18,7 +18,8 @@ from app.database import (
     set_setting,
     get_setting,
     get_all_discovered_models,
-    get_unhealthy_models
+    get_unhealthy_models,
+    get_recent_model_updates
 )
 from app.notifications import send_notification
 from app.discovery import classify_model_tier, process_and_track_discovered_models
@@ -43,9 +44,17 @@ from app.vertex import (
     fetch_vertex_billing_skus,
     fetch_vertex_publisher_models,
     verify_and_cache_vertex_models,
-    update_vertex_creds_file
+    update_vertex_creds_file,
+    fetch_google_billing_info,
+    fetch_vertex_spend,
+    check_vertex_budget
 )
-from app.openrouter import get_openrouter_models
+
+from app.openrouter import (
+    get_openrouter_models,
+    fetch_openrouter_credits,
+    check_openrouter_balance
+)
 from app.local_llm import verify_and_cache_local_models
 from app.sync import (
     export_opencode_config,
@@ -88,7 +97,7 @@ async def initial_load_models():
     asyncio.create_task(verify_and_cache_vertex_models())
 
 async def periodic_health_monitor():
-    """Periodic background loop checking active model health and alerting outages."""
+    """Periodic background loop checking active model health, OpenRouter balance, and alerting outages."""
     while True:
         try:
             interval_hours = float(await get_setting("HEALTH_CHECK_INTERVAL_HOURS", "24"))
@@ -97,7 +106,22 @@ async def periodic_health_monitor():
             config_path = get_app_setting("LITELLM_CONFIG", DEFAULT_CONFIG_PATH)
             probe_mode = await get_setting("PROBE_MODE", "catalog")
             await check_active_models_health(config_path=config_path, notify=True, mode=probe_mode)
+            
+            # Check OpenRouter balance and low credit threshold
+            try:
+                print("Checking OpenRouter credit balance...")
+                await check_openrouter_balance(notify=True)
+            except Exception as e:
+                print(f"Error checking OpenRouter balance: {e}")
+
+            # Check Vertex AI spend and GCP billing
+            try:
+                print("Checking Vertex AI spend and GCP billing...")
+                await check_vertex_budget(notify=True)
+            except Exception as e:
+                print(f"Error checking Vertex AI budget: {e}")
         except asyncio.CancelledError:
+
             break
         except Exception as e:
             print(f"Error in periodic health monitor: {e}")
@@ -300,6 +324,52 @@ async def api_test_notification(payload: Optional[Dict[str, str]] = None):
         override_url=url
     )
 
+@app.get("/api/openrouter/credits")
+async def api_openrouter_credits():
+    """Retrieve current OpenRouter credit balance, usage, and key limits."""
+    return await fetch_openrouter_credits()
+
+@app.post("/api/openrouter/check-credits")
+async def api_openrouter_check_credits(payload: Optional[Dict[str, Any]] = None):
+    """Trigger an on-demand balance check with optional threshold and notification."""
+    threshold = None
+    notify = True
+    if payload:
+        if "threshold" in payload and payload["threshold"] not in (None, ""):
+            try:
+                threshold = float(payload["threshold"])
+            except (ValueError, TypeError):
+                pass
+        if "notify" in payload:
+            notify = bool(payload["notify"])
+    return await check_openrouter_balance(notify=notify, threshold=threshold)
+
+@app.get("/api/vertex/billing")
+async def api_vertex_billing():
+    """Retrieve current GCP billing status and Vertex AI spend metrics."""
+    return await check_vertex_budget(notify=False)
+
+@app.post("/api/vertex/check-budget")
+async def api_vertex_check_budget(payload: Optional[Dict[str, Any]] = None):
+    """Trigger an on-demand Vertex AI budget check with optional threshold and notification."""
+    budget = None
+    notify = True
+    if payload:
+        if "budget" in payload and payload["budget"] not in (None, ""):
+            try:
+                budget = float(payload["budget"])
+            except (ValueError, TypeError):
+                pass
+        if "notify" in payload:
+            notify = bool(payload["notify"])
+    return await check_vertex_budget(notify=notify, budget=budget)
+
+@app.get("/api/models/updates")
+async def api_models_updates(limit: int = 50):
+    """Retrieve recently discovered models and models with recorded price changes."""
+    return await get_recent_model_updates(limit=limit)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

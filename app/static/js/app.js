@@ -1,7 +1,25 @@
 /**
- * app.js - LiteLLM Model Manager
- * Application initialization, brand list generation, initial config loader, and form submission lifecycle.
+ * Theme management for LiteLLM Model Manager.
+ * Defaults to 'cyber-emerald' (Cyber / Emerald Obsidian).
  */
+function initTheme() {
+    const saved = localStorage.getItem('llm_manager_theme') || 'cyber-emerald';
+    changeTheme(saved, false);
+}
+
+function changeTheme(themeName, save = true) {
+    if (save) {
+        localStorage.setItem('llm_manager_theme', themeName);
+    }
+    document.documentElement.setAttribute('data-theme', themeName);
+    const sel = document.getElementById('themeSelector');
+    if (sel && sel.value !== themeName) {
+        sel.value = themeName;
+    }
+}
+
+// Apply theme as early as possible
+initTheme();
 
 /**
  * Dynamically aggregates unique brands from all rendered model cards
@@ -48,6 +66,7 @@ function populateBrands() {
  * Main application startup and bootstrap sequence.
  */
 async function initApp() {
+    initTheme();
     if (typeof restoreColumnCollapseState === 'function') {
         restoreColumnCollapseState();
     } else if (window.restoreColumnCollapseState) {
@@ -106,6 +125,18 @@ async function initApp() {
         window.applyAllFilters();
     }
 
+    if (typeof loadOpenRouterBalanceBadge === 'function') {
+        loadOpenRouterBalanceBadge();
+    } else if (window.loadOpenRouterBalanceBadge) {
+        window.loadOpenRouterBalanceBadge();
+    }
+
+    if (typeof loadVertexBillingBadge === 'function') {
+        loadVertexBillingBadge();
+    } else if (window.loadVertexBillingBadge) {
+        window.loadVertexBillingBadge();
+    }
+
     // Attach Settings Form Submit Handler
     const settingsForm = document.getElementById('settingsForm');
     if (settingsForm) {
@@ -118,14 +149,21 @@ async function initApp() {
             const notifEnabled = document.getElementById('setting_NOTIF_ENABLED');
             const notifUnavail = document.getElementById('setting_NOTIF_UNAVAIL');
             const notifTrending = document.getElementById('setting_NOTIF_TRENDING');
+            const notifPrice = document.getElementById('setting_NOTIF_PRICE_CHANGE');
             const localEnabled = document.getElementById('setting_LOCAL_ENABLED');
             const remoteOpencodeEnabled = document.getElementById('setting_OPENCODE_REMOTE_ENABLED');
+            const orAlertEnabled = document.getElementById('setting_OR_ALERT_ENABLED');
+            const vxAlertEnabled = document.getElementById('setting_VX_ALERT_ENABLED');
 
             data.NOTIFICATION_ENABLED = notifEnabled && notifEnabled.checked ? 'true' : 'false';
             data.NOTIFY_ON_UNAVAILABLE = notifUnavail && notifUnavail.checked ? 'true' : 'false';
             data.NOTIFY_ON_TRENDING = notifTrending && notifTrending.checked ? 'true' : 'false';
+            data.NOTIFY_ON_PRICE_CHANGE = notifPrice && notifPrice.checked ? 'true' : 'false';
             data.LOCAL_LLM_ENABLED = localEnabled && localEnabled.checked ? 'true' : 'false';
             data.OPENCODE_REMOTE_ENABLED = remoteOpencodeEnabled && remoteOpencodeEnabled.checked ? 'true' : 'false';
+            data.OPENROUTER_BALANCE_ALERT_ENABLED = orAlertEnabled && orAlertEnabled.checked ? 'true' : 'false';
+            data.VERTEX_BUDGET_ALERT_ENABLED = vxAlertEnabled && vxAlertEnabled.checked ? 'true' : 'false';
+
 
             try {
                 const resp = await fetch('/api/settings', {
@@ -188,3 +226,5 @@ window.onload = initApp;
 // Expose globally
 window.populateBrands = populateBrands;
 window.initApp = initApp;
+window.initTheme = initTheme;
+window.changeTheme = changeTheme;

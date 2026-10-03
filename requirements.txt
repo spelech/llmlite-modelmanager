@@ -16,3 +16,4 @@ aiosqlite
 cryptography
 fastmcp>=3.0.0
 paramiko
+asyncpg

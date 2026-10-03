@@ -1,5 +1,73 @@
-:root {
-    /* Autumn Dark Theme (Default) */
+:root, [data-theme="cyber-emerald"] {
+    /* Cyber / Emerald Theme (Default) */
+    --bg-body: #070d0a;
+    --bg-card: #0d1712;
+    --bg-card-hover: #13221b;
+    --bg-input: #101c15;
+    --bg-section: #0a130f;
+    --text-main: #ecfdf5;
+    --text-dim: #a7f3d0;
+    --text-muted: #6ee7b7;
+    --accent: #10b981;
+    --accent-hover: #34d399;
+    --accent-glow: rgba(16, 185, 129, 0.25);
+    --on-accent: #022c22;
+    --border: #183324;
+    --border-subtle: rgba(16, 185, 129, 0.18);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 50px;
+}
+
+[data-theme="slate-indigo"] {
+    /* Slate Indigo Theme */
+    --bg-body: #0b0f19;
+    --bg-card: #111827;
+    --bg-card-hover: #1f2937;
+    --bg-input: #1e293b;
+    --bg-section: #0f172a;
+    --text-main: #f8fafc;
+    --text-dim: #cbd5e1;
+    --text-muted: #94a3b8;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --accent-glow: rgba(99, 102, 241, 0.25);
+    --on-accent: #ffffff;
+    --border: #1e293b;
+    --border-subtle: rgba(99, 102, 241, 0.18);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+}
+
+[data-theme="neutral-zinc"] {
+    /* Neutral Zinc Minimal Theme */
+    --bg-body: #09090b;
+    --bg-card: #18181b;
+    --bg-card-hover: #27272a;
+    --bg-input: #202024;
+    --bg-section: #121214;
+    --text-main: #fafafa;
+    --text-dim: #d4d4d8;
+    --text-muted: #a1a1aa;
+    --accent: #e4e4e7;
+    --accent-hover: #ffffff;
+    --accent-glow: rgba(255, 255, 255, 0.15);
+    --on-accent: #09090b;
+    --border: #27272a;
+    --border-subtle: rgba(255, 255, 255, 0.12);
+    --success: #22c55e;
+    --warning: #eab308;
+    --danger: #ef4444;
+}
+
+[data-theme="autumn"] {
+    /* Autumn Dark Theme */
     --bg-body: #140f0b;
     --bg-card: #1f1812;
     --bg-card-hover: #2a2018;
@@ -17,32 +85,59 @@
     --success: #a3e635;
     --warning: #f59e0b;
     --danger: #ef4444;
-    
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-pill: 50px;
 }
 
-@media (prefers-color-scheme: light) {
-    :root {
-        /* Autumn Light Theme */
-        --bg-body: #faf5ee;
-        --bg-card: #ffffff;
-        --bg-card-hover: #f7efe4;
-        --bg-input: #f0e3d3;
-        --bg-section: #f5eae0;
-        --text-main: #2b1c10;
-        --text-dim: #6d5b4d;
-        --text-muted: #958373;
-        --accent: #ea580c;
-        --accent-hover: #c2410c;
-        --accent-glow: rgba(234, 88, 12, 0.15);
-        --on-accent: #ffffff;
-        --border: #e3d3c2;
-        --border-subtle: rgba(234, 88, 12, 0.12);
-        --success: #15803d;
-        --warning: #b45309;
-        --danger: #b91c1c;
-    }
+/* Badge styling for model cards and headers */
+.badge-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    font-size: 0.72em;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
+
+.badge-new {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: var(--success);
+}
+
+.badge-drop {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    color: #4ade80;
+}
+
+.badge-hike {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+
+.badge-router {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+.theme-selector {
+    padding: 5px 9px;
+    font-size: 0.82em;
+    font-weight: 600;
+    background: var(--bg-input);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.theme-selector:hover {
+    border-color: var(--accent);
+}
+
