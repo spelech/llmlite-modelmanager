@@ -18,7 +18,25 @@ from app.config import (
 )
 from app.notifications import send_notification
 
-def normalize_opencode_v2_config(content: dict, models: list, plugin_path: Optional[str] = None) -> dict:
+MANAGED_PROVIDER_PREFIXES = ("openrouter/", "vertex_ai/", "local/", "ollama_chat/", "ollama/")
+
+
+def is_custom_model_entry(entry: dict, model_map: Optional[Dict[str, Any]] = None) -> bool:
+    """Return True if a LiteLLM model_list entry is a custom/static route (e.g., CLIAgentDispatch agy-*) not managed by discovery."""
+    mid = (entry.get("model_info", {}) or {}).get("id") or (entry.get("litellm_params", {}) or {}).get("model") or ""
+    if not mid:
+        return False
+    if model_map and mid in model_map:
+        return False
+    return not mid.startswith(MANAGED_PROVIDER_PREFIXES)
+
+
+def normalize_opencode_v2_config(
+    content: dict,
+    models: list,
+    plugin_path: Optional[str] = None,
+    removed_model_names: Optional[set] = None
+) -> dict:
     """Normalizes OpenCode configuration to native V2 schema, upgrading legacy V1 fields and syncing models."""
     if "$schema" not in content:
         content["$schema"] = "https://opencode.ai/config.json"
@@ -81,6 +99,11 @@ def normalize_opencode_v2_config(content: dict, models: list, plugin_path: Optio
         }
 
     merged_models = dict(providers["litellm"].get("models", {}))
+    if removed_model_names:
+        for rem_name in removed_model_names:
+            if rem_name not in opencode_models:
+                merged_models.pop(rem_name, None)
+
     for m_name, m_cfg in opencode_models.items():
         if m_name in merged_models and isinstance(merged_models[m_name], dict):
             merged_models[m_name].update(m_cfg)
@@ -120,7 +143,11 @@ def normalize_opencode_v2_config(content: dict, models: list, plugin_path: Optio
 
     return content
 
-def export_opencode_config(models: list, target_path: str = "/app/opencode_config/opencode.jsonc"):
+def export_opencode_config(
+    models: list,
+    target_path: str = "/app/opencode_config/opencode.jsonc",
+    removed_model_names: Optional[set] = None
+):
     """Sync active LiteLLM models to OpenCode configuration file using native V2 schema."""
     if not os.path.exists(target_path):
         return
@@ -132,7 +159,7 @@ def export_opencode_config(models: list, target_path: str = "/app/opencode_confi
         print(f"Error reading opencode config: {e}")
         return
 
-    content = normalize_opencode_v2_config(content, models)
+    content = normalize_opencode_v2_config(content, models, removed_model_names=removed_model_names)
     
     with open(target_path, "w") as f:
         json.dump(content, f, indent=2)
@@ -324,7 +351,8 @@ def sync_single_remote_host(
     user: Optional[str] = None,
     key_str: Optional[str] = None,
     passphrase: Optional[str] = None,
-    timeout: int = 10
+    timeout: int = 10,
+    removed_model_names: Optional[set] = None
 ) -> Dict[str, Any]:
     """Safely synchronize OpenCode configuration to a single remote host."""
     client = None
@@ -353,7 +381,12 @@ def sync_single_remote_host(
         except Exception as e:
             raise RuntimeError(f"Error reading remote opencode config: {e}")
 
-        content = normalize_opencode_v2_config(content, models, plugin_path=plugin_path)
+        content = normalize_opencode_v2_config(
+            content,
+            models,
+            plugin_path=plugin_path,
+            removed_model_names=removed_model_names
+        )
         synced_count = len([m for m in models if m.get("model_name") and not m.get("model_name", "").endswith("*")])
 
         tmp_path = config_path + ".tmp"
@@ -397,7 +430,7 @@ def sync_single_remote_host(
             except Exception:
                 pass
 
-def export_remote_opencode_config(models: list) -> Dict[str, Any]:
+def export_remote_opencode_config(models: list, removed_model_names: Optional[set] = None) -> Dict[str, Any]:
     """Sync active LiteLLM models and optional plugin configuration to remote host(s) over SSH."""
     enabled_str = str(get_app_setting("OPENCODE_REMOTE_ENABLED", "false")).lower()
     if enabled_str not in ("true", "1", "yes"):
@@ -425,7 +458,8 @@ def export_remote_opencode_config(models: list) -> Dict[str, Any]:
                 target_host=target_host,
                 models=models,
                 config_path=config_path,
-                plugin_path=plugin_path
+                plugin_path=plugin_path,
+                removed_model_names=removed_model_names
             )
             results.append(res)
             if res.get("status") == "success":
@@ -557,7 +591,8 @@ def export_librechat_config(models: list, target_paths: Optional[List[str]] = No
 async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
     """
     Core logic to sync selected models into LiteLLM config, OpenCode config, and LibreChat config
-    with automatic duplicate collision prevention and safety backup.
+    with automatic duplicate collision prevention, preservation of custom/static routes (e.g. agy-*),
+    and safety backup.
     """
     all_models = app_state.get("or_models", []) + app_state.get("vx_models", []) + app_state.get("local_models", [])
     model_map = {m["id"]: m for m in all_models}
@@ -572,13 +607,33 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
 
         with open(config_path, "r") as f:
             config = yaml.safe_load(f) or {}
+
+    existing_model_list = config.get("model_list", []) or []
+    old_model_names = {m.get("model_name") for m in existing_model_list if isinstance(m, dict) and m.get("model_name")}
+
+    preserved_custom_models = [
+        m for m in existing_model_list
+        if isinstance(m, dict) and is_custom_model_entry(m, model_map)
+    ]
+    custom_identifiers = set()
+    for m in preserved_custom_models:
+        if m.get("model_name"):
+            custom_identifiers.add(m["model_name"])
+        m_id = (m.get("model_info", {}) or {}).get("id")
+        if m_id:
+            custom_identifiers.add(m_id)
+        lp_model = (m.get("litellm_params", {}) or {}).get("model")
+        if lp_model:
+            custom_identifiers.add(lp_model)
+
+    managed_selected_ids = [mid for mid in selected_ids if mid not in custom_identifiers]
     
     # Analyze base model names to detect collisions across providers
-    base_names = [mid.removeprefix("local/") if mid.startswith("local/") else mid.split("/")[-1] for mid in selected_ids]
+    base_names = [mid.removeprefix("local/") if mid.startswith("local/") else mid.split("/")[-1] for mid in managed_selected_ids]
     name_counts = Counter(base_names)
     
-    new_model_list = []
-    for mid in selected_ids:
+    new_model_list = list(preserved_custom_models)
+    for mid in managed_selected_ids:
         m_data = model_map.get(mid, {})
         pricing = m_data.get("pricing", {})
         if mid.startswith("local/"):
@@ -668,16 +723,19 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
         new_model_list.append(entry)
     
     config["model_list"] = new_model_list
+    new_model_names = {m.get("model_name") for m in new_model_list if isinstance(m, dict) and m.get("model_name")}
+    removed_model_names = old_model_names - new_model_names
     
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, sort_keys=False)
         
-    export_opencode_config(config["model_list"])
-    remote_opencode_res = await asyncio.to_thread(export_remote_opencode_config, config["model_list"])
+    export_opencode_config(config["model_list"], removed_model_names=removed_model_names)
+    remote_opencode_res = await asyncio.to_thread(export_remote_opencode_config, config["model_list"], removed_model_names)
     librechat_res = export_librechat_config(config["model_list"])
     return {
         "status": "success",
-        "updated_models": len(new_model_list),
+        "updated_models": len(managed_selected_ids),
+        "preserved_custom_models": len(preserved_custom_models),
         "remote_opencode_sync": remote_opencode_res,
         "librechat_sync": librechat_res
     }
