@@ -44,7 +44,7 @@ async def probe_model_catalog(model_id: str, settings: Dict[str, str]) -> Dict[s
 
         elif model_id.startswith("openrouter/"):
             or_id = model_id.replace("openrouter/", "")
-            url = f"https://openrouter.ai/api/v1/models/{or_id}"
+            url = f"https://openrouter.ai/api/v1/models/{or_id}/endpoints"
             
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url)
@@ -106,6 +106,29 @@ async def probe_model_catalog(model_id: str, settings: Dict[str, str]) -> Dict[s
                         "healthy": False,
                         "latency_ms": round(latency, 2),
                         "error": f"Local LLM Catalog HTTP {resp.status_code}: {resp.text}",
+                        "response": None
+                    }
+
+        elif model_id.startswith("openai/"):
+            short_id = model_id.split("/", 1)[-1]
+            dispatch_url = settings.get("AGY_DISPATCH_URL", os.environ.get("AGY_DISPATCH_URL", "http://10.0.0.10:8032/v1")).rstrip("/")
+            url = f"{dispatch_url}/models"
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url)
+                latency = (time.time() - start_time) * 1000
+                if resp.status_code == 200:
+                    return {
+                        "healthy": True,
+                        "latency_ms": round(latency, 2),
+                        "response": f"Catalog Active ({short_id}) [0 Tokens]",
+                        "error": None
+                    }
+                else:
+                    return {
+                        "healthy": False,
+                        "latency_ms": round(latency, 2),
+                        "error": f"CLIAgentDispatch Catalog HTTP {resp.status_code}: {resp.text}",
                         "response": None
                     }
                     
@@ -208,6 +231,27 @@ async def probe_model_live(model_id: str, settings: Dict[str, str]) -> Dict[str,
                         "healthy": False,
                         "latency_ms": round(latency, 2),
                         "error": f"Local LLM HTTP {resp.status_code}: {resp.text}",
+                        "response": None
+                    }
+
+        elif model_id.startswith("openai/"):
+            short_id = model_id.split("/", 1)[-1]
+            dispatch_url = settings.get("AGY_DISPATCH_URL", os.environ.get("AGY_DISPATCH_URL", "http://10.0.0.10:8032/v1")).rstrip("/")
+            v1_url = f"{dispatch_url}/chat/completions"
+            v1_payload = {"model": short_id, "messages": [{"role": "user", "content": "1"}], "max_tokens": 1}
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(v1_url, json=v1_payload)
+                latency = (time.time() - start_time) * 1000
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    res_text = res_json.get("choices", [{}])[0].get("message", {}).get("content", "OK")
+                    return {"healthy": True, "latency_ms": round(latency, 2), "response": str(res_text), "error": None}
+                else:
+                    return {
+                        "healthy": False,
+                        "latency_ms": round(latency, 2),
+                        "error": f"CLIAgentDispatch HTTP {resp.status_code}: {resp.text}",
                         "response": None
                     }
                     

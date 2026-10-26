@@ -200,4 +200,87 @@ async def test_sync_dynamic_router_sanitizes_cost_per_token(tmp_path):
         assert model["model_info"]["output_cost_per_token"] == 0.0
 
 
+@pytest.mark.asyncio
+async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode(tmp_path):
+    import json
+    config_file = tmp_path / "config.yaml"
+    opencode_file = tmp_path / "opencode.jsonc"
+
+    initial_cfg = {
+        "model_list": [
+            {
+                "model_name": "agy-argon-xhigh",
+                "litellm_params": {
+                    "model": "openai/agy-argon-xhigh",
+                    "api_base": "http://10.0.0.10:8032/v1",
+                    "api_key": "not-needed"
+                },
+                "model_info": {
+                    "id": "openai/agy-argon-xhigh",
+                    "max_input_tokens": 1048576,
+                    "max_output_tokens": 65536,
+                    "brand": "google",
+                    "pricing_tier": "free"
+                }
+            },
+            {
+                "model_name": "old-removed-model",
+                "litellm_params": {"model": "openrouter/z-ai/glm-5.1"},
+                "model_info": {"id": "openrouter/z-ai/glm-5.1", "max_input_tokens": 204800, "max_output_tokens": 8192}
+            }
+        ]
+    }
+    config_file.write_text(yaml.safe_dump(initial_cfg))
+
+    opencode_file.write_text(json.dumps({
+        "$schema": "https://opencode.ai/config.json",
+        "providers": {
+            "litellm": {
+                "package": "@opencode/ai/providers/openai-compatible",
+                "settings": {"baseURL": "http://10.0.0.10:8448/v1"},
+                "models": {
+                    "opencode-default": {"name": "opencode-default", "limit": {"context": 1000000, "output": 65536}},
+                    "agy-argon-xhigh": {"name": "agy-argon-xhigh", "limit": {"context": 1048576, "output": 65536}},
+                    "old-removed-model": {"name": "old-removed-model", "limit": {"context": 204800, "output": 8192}}
+                }
+            }
+        }
+    }))
+
+    app_state["or_models"] = [
+        {
+            "id": "openrouter/z-ai/glm-5.3",
+            "name": "GLM 5.3",
+            "brand": "z-ai",
+            "tier": "moderate",
+            "pricing": {"prompt": 0.0000014, "completion": 0.0000044},
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536
+        }
+    ]
+    app_state["vx_models"] = []
+    app_state["local_models"] = []
+
+    from app.sync import export_opencode_config as real_export_opencode
+    with patch("app.sync.get_app_setting", side_effect=lambda key, default=None: str(config_file) if key == "LITELLM_CONFIG" else default), \
+         patch("app.sync.export_opencode_config", side_effect=lambda models, removed_model_names=None: real_export_opencode(models, target_path=str(opencode_file), removed_model_names=removed_model_names)):
+        res = await sync_models_internal(["openrouter/z-ai/glm-5.3"])
+        assert res["status"] == "success"
+        assert res["updated_models"] == 1
+        assert res["preserved_custom_models"] == 1
+
+        saved_cfg = yaml.safe_load(config_file.read_text())
+        names = [m["model_name"] for m in saved_cfg["model_list"]]
+        assert names == ["agy-argon-xhigh", "glm-5.3"]
+        assert saved_cfg["model_list"][0]["litellm_params"]["api_base"] == "http://10.0.0.10:8032/v1"
+
+        oc_data = json.loads(opencode_file.read_text())
+        oc_models = oc_data["providers"]["litellm"]["models"]
+        assert "opencode-default" in oc_models
+        assert "agy-argon-xhigh" in oc_models
+        assert "glm-5.3" in oc_models
+        assert "old-removed-model" not in oc_models
+
+
+
 
