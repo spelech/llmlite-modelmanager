@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import json
 import yaml
 import time
@@ -20,6 +21,16 @@ from app.notifications import send_notification
 
 MANAGED_PROVIDER_PREFIXES = ("openrouter/", "vertex_ai/", "local/", "ollama_chat/", "ollama/")
 
+INTERNAL_ONLY_ALIASES = {
+    "openclaw-default",
+    "actual-brain",
+    "claude-haiku-4-5",
+    "anthropic/claude-haiku-4-5",
+    "z-ai/glm-5.3",
+    "z-ai/glm-5.3-flash",
+    "google/gemini-3.8-flash",
+}
+
 
 def is_custom_model_entry(entry: dict, model_map: Optional[Dict[str, Any]] = None) -> bool:
     """Return True if a LiteLLM model_list entry is a custom/static route (e.g., CLIAgentDispatch agy-*) not managed by discovery."""
@@ -31,11 +42,184 @@ def is_custom_model_entry(entry: dict, model_map: Optional[Dict[str, Any]] = Non
     return not mid.startswith(MANAGED_PROVIDER_PREFIXES)
 
 
+def _extract_version_tuple(text: str) -> tuple:
+    """Extract (major, minor, is_clean_release) tuple from a model identifier for picking the latest family model."""
+    low = text.lower()
+    m = re.search(r"(?:gemini-|glm-|deepseek-v|qwen|hy)(\d+)(?:\.(\d+))?", low)
+    if not m:
+        return (0, 0, 0)
+    major = int(m.group(1))
+    minor = int(m.group(2)) if m.group(2) is not None else 0
+    # Prefer base release names over dated snapshots (e.g., -0731, -0813, -1017) when major.minor ties
+    has_date_suffix = bool(re.search(r"-\d{4}$", low))
+    return (major, minor, 0 if has_date_suffix else 1)
+
+
+def build_auto_model_group_aliases(
+    model_list: List[Dict[str, Any]],
+    existing_aliases: Optional[Dict[str, str]] = None
+) -> Dict[str, str]:
+    """
+    Build LiteLLM router_settings.model_group_alias mapping canonical downstream aliases
+    to the highest-versioned enabled model in each family.
+    """
+    entries = []
+    name_set = set()
+    for m in model_list:
+        if not isinstance(m, dict):
+            continue
+        m_name = m.get("model_name") or ""
+        mid = (m.get("model_info", {}) or {}).get("id") or (m.get("litellm_params", {}) or {}).get("model") or ""
+        if m_name:
+            name_set.add(m_name)
+            entries.append((m_name, mid.lower()))
+
+    def _pick_best(predicate) -> Optional[str]:
+        candidates = [( _extract_version_tuple(mid), m_name ) for m_name, mid in entries if predicate(m_name, mid)]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
+
+    aliases: Dict[str, str] = {}
+
+    best_flash = _pick_best(
+        lambda name, mid: mid.startswith("vertex_ai/gemini-")
+        and mid.endswith("-flash")
+        and not any(x in mid for x in ("-lite", "-image", "-tts", "-live", "-omni"))
+    )
+    best_flash_lite = _pick_best(
+        lambda name, mid: mid.startswith("vertex_ai/gemini-") and mid.endswith("-flash-lite")
+    )
+    best_argon = _pick_best(
+        lambda name, mid: mid.startswith("vertex_ai/gemini-") and "argon" in mid
+    )
+    best_glm = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/z-ai/glm-")
+        and not any(x in mid for x in ("-flash", "-air", "-turbo", "-prime", ":"))
+    )
+    best_glm_flash = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/z-ai/glm-") and mid.endswith("-flash")
+    )
+    best_ds_pro = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/deepseek/deepseek-") and "-pro" in mid and ":" not in mid
+    )
+    best_ds_flash = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/deepseek/deepseek-")
+        and "-flash" in mid
+        and ":" not in mid
+        and "vision" not in mid
+    )
+    best_qwen_flash = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/qwen/qwen")
+        and mid.endswith("-flash")
+        and not any(x in mid for x in ("-coder", "-omni"))
+    )
+    best_qwen_max = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/qwen/qwen") and mid.endswith("-max")
+    )
+    best_qwen_cheap = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/qwen/qwen")
+        and any(mid.endswith(s) for s in ("-27b", "-32b", "-30b-a3b"))
+    )
+    best_hy4 = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/tencent/hy4")
+    )
+    best_hy3 = _pick_best(
+        lambda name, mid: mid == "openrouter/tencent/hy3" or (mid.startswith("openrouter/tencent/hy3") and "preview" not in mid)
+    )
+    best_jev = _pick_best(
+        lambda name, mid: "jev-router" in mid
+    )
+
+    if best_flash:
+        aliases["opencode-default"] = best_flash
+        aliases["openclaw-default"] = best_flash
+        aliases["flash-latest"] = best_flash
+        aliases["google/gemini-3.8-flash"] = best_flash
+    if best_flash_lite:
+        aliases["opencode-small"] = best_flash_lite
+        aliases["flash-lite-latest"] = best_flash_lite
+    if best_argon:
+        aliases["argon"] = best_argon
+    if best_glm:
+        aliases["glm"] = best_glm
+        aliases["z-ai/glm-5.3"] = best_glm
+    if best_glm_flash:
+        aliases["glm-flash"] = best_glm_flash
+        aliases["claude-haiku-4-5"] = best_glm_flash
+        aliases["anthropic/claude-haiku-4-5"] = best_glm_flash
+        aliases["z-ai/glm-5.3-flash"] = best_glm_flash
+    if best_ds_pro:
+        aliases["deepseek-pro"] = best_ds_pro
+    if best_ds_flash:
+        aliases["deepseek-flash"] = best_ds_flash
+        aliases["actual-brain"] = best_ds_flash
+    if best_qwen_flash:
+        aliases["qwen-flash"] = best_qwen_flash
+    if best_qwen_max:
+        aliases["qwen-max"] = best_qwen_max
+    if best_qwen_cheap:
+        aliases["qwen-cheap"] = best_qwen_cheap
+    if best_hy4:
+        aliases["hy4"] = best_hy4
+    if best_hy3:
+        aliases["hy3"] = best_hy3
+    if best_jev:
+        aliases["jev-router"] = best_jev
+
+    # Preserve any custom user-defined aliases from existing_aliases whose target model still exists in model_list
+    if existing_aliases and isinstance(existing_aliases, dict):
+        for k, v in existing_aliases.items():
+            if k not in aliases and v in name_set:
+                aliases[k] = v
+
+    return aliases
+
+
+def build_auto_fallbacks(
+    aliases: Dict[str, str],
+    enabled_names: set
+) -> List[Dict[str, List[str]]]:
+    """Build valid LiteLLM router_settings.fallbacks using currently enabled models."""
+    fallbacks: List[Dict[str, List[str]]] = []
+
+    def _valid(candidates: List[Optional[str]]) -> List[str]:
+        out = []
+        for c in candidates:
+            if c and c in enabled_names and c not in out:
+                out.append(c)
+        return out
+
+    if "agy" in enabled_names:
+        fb = _valid([aliases.get("argon"), aliases.get("deepseek-flash"), aliases.get("qwen-flash")])
+        if fb:
+            fallbacks.append({"agy": fb})
+
+    flash_target = aliases.get("flash-latest")
+    if flash_target and flash_target in enabled_names:
+        fb = _valid([aliases.get("qwen-flash"), aliases.get("deepseek-flash"), aliases.get("glm-flash")])
+        if fb:
+            fallbacks.append({flash_target: fb})
+
+    flash_lite_target = aliases.get("flash-lite-latest")
+    if flash_lite_target and flash_lite_target in enabled_names:
+        fb = _valid([aliases.get("deepseek-flash"), aliases.get("glm-flash"), aliases.get("qwen-flash")])
+        if fb:
+            fallbacks.append({flash_lite_target: fb})
+
+    if "gemini-3.1-flash-image" in enabled_names and "gemini-nano-banana-2.1" in enabled_names:
+        fallbacks.append({"gemini-3.1-flash-image": ["gemini-nano-banana-2.1"]})
+
+    return fallbacks
+
+
 def normalize_opencode_v2_config(
     content: dict,
     models: list,
     plugin_path: Optional[str] = None,
-    removed_model_names: Optional[set] = None
+    removed_model_names: Optional[set] = None,
+    model_group_alias: Optional[Dict[str, str]] = None
 ) -> dict:
     """Normalizes OpenCode configuration to native V2 schema, upgrading legacy V1 fields and syncing models."""
     if "$schema" not in content:
@@ -81,7 +265,8 @@ def normalize_opencode_v2_config(
         if "models" not in litellm or not isinstance(litellm["models"], dict):
             litellm["models"] = {}
 
-    # Transform active LiteLLM models
+    # Build lookup of active LiteLLM models and their token limits
+    model_limits_by_name = {}
     opencode_models = {}
     for m in models:
         m_name = m.get("model_name")
@@ -90,26 +275,52 @@ def normalize_opencode_v2_config(
         info = m.get("model_info", {})
         ctx_limit = info.get("max_input_tokens", 128000) or 128000
         out_limit = info.get("max_output_tokens", 8192) or 8192
+        limit_dict = {
+            "context": ctx_limit,
+            "output": out_limit
+        }
+        model_limits_by_name[m_name] = limit_dict
         opencode_models[m_name] = {
             "name": m_name,
-            "limit": {
-                "context": ctx_limit,
-                "output": out_limit
-            }
+            "limit": limit_dict
         }
 
-    merged_models = dict(providers["litellm"].get("models", {}))
-    if removed_model_names:
-        for rem_name in removed_model_names:
-            if rem_name not in opencode_models:
-                merged_models.pop(rem_name, None)
+    existing_oc_models = dict(providers["litellm"].get("models", {}))
 
-    for m_name, m_cfg in opencode_models.items():
-        if m_name in merged_models and isinstance(merged_models[m_name], dict):
-            merged_models[m_name].update(m_cfg)
-        else:
-            merged_models[m_name] = m_cfg
-    providers["litellm"]["models"] = merged_models
+    if model_group_alias and isinstance(model_group_alias, dict):
+        # Alias-focused sync: only export clean, non-internal aliases into OpenCode
+        alias_models = {}
+        for reserved in ("opencode-default", "opencode-small"):
+            if reserved in existing_oc_models and isinstance(existing_oc_models[reserved], dict):
+                alias_models[reserved] = dict(existing_oc_models[reserved])
+        for alias_name, target_name in model_group_alias.items():
+            if alias_name in INTERNAL_ONLY_ALIASES or "/" in alias_name:
+                continue
+            target_limit = model_limits_by_name.get(target_name, {"context": 128000, "output": 8192})
+            entry_cfg = {
+                "name": alias_name,
+                "limit": dict(target_limit)
+            }
+            if alias_name in existing_oc_models and isinstance(existing_oc_models[alias_name], dict):
+                merged_entry = dict(existing_oc_models[alias_name])
+                merged_entry.update(entry_cfg)
+                alias_models[alias_name] = merged_entry
+            else:
+                alias_models[alias_name] = entry_cfg
+        providers["litellm"]["models"] = alias_models
+    else:
+        merged_models = existing_oc_models
+        if removed_model_names:
+            for rem_name in removed_model_names:
+                if rem_name not in opencode_models:
+                    merged_models.pop(rem_name, None)
+
+        for m_name, m_cfg in opencode_models.items():
+            if m_name in merged_models and isinstance(merged_models[m_name], dict):
+                merged_models[m_name].update(m_cfg)
+            else:
+                merged_models[m_name] = m_cfg
+        providers["litellm"]["models"] = merged_models
 
     # Migrate legacy "plugin" to "plugins"
     plugins = content.get("plugins")
@@ -146,7 +357,8 @@ def normalize_opencode_v2_config(
 def export_opencode_config(
     models: list,
     target_path: str = "/app/opencode_config/opencode.jsonc",
-    removed_model_names: Optional[set] = None
+    removed_model_names: Optional[set] = None,
+    model_group_alias: Optional[Dict[str, str]] = None
 ):
     """Sync active LiteLLM models to OpenCode configuration file using native V2 schema."""
     if not os.path.exists(target_path):
@@ -159,7 +371,12 @@ def export_opencode_config(
         print(f"Error reading opencode config: {e}")
         return
 
-    content = normalize_opencode_v2_config(content, models, removed_model_names=removed_model_names)
+    content = normalize_opencode_v2_config(
+        content,
+        models,
+        removed_model_names=removed_model_names,
+        model_group_alias=model_group_alias
+    )
     
     with open(target_path, "w") as f:
         json.dump(content, f, indent=2)
@@ -352,7 +569,8 @@ def sync_single_remote_host(
     key_str: Optional[str] = None,
     passphrase: Optional[str] = None,
     timeout: int = 10,
-    removed_model_names: Optional[set] = None
+    removed_model_names: Optional[set] = None,
+    model_group_alias: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """Safely synchronize OpenCode configuration to a single remote host."""
     client = None
@@ -385,9 +603,10 @@ def sync_single_remote_host(
             content,
             models,
             plugin_path=plugin_path,
-            removed_model_names=removed_model_names
+            removed_model_names=removed_model_names,
+            model_group_alias=model_group_alias
         )
-        synced_count = len([m for m in models if m.get("model_name") and not m.get("model_name", "").endswith("*")])
+        synced_count = len(content.get("providers", {}).get("litellm", {}).get("models", {}))
 
         tmp_path = config_path + ".tmp"
         bak_path = config_path + ".bak"
@@ -430,7 +649,11 @@ def sync_single_remote_host(
             except Exception:
                 pass
 
-def export_remote_opencode_config(models: list, removed_model_names: Optional[set] = None) -> Dict[str, Any]:
+def export_remote_opencode_config(
+    models: list,
+    removed_model_names: Optional[set] = None,
+    model_group_alias: Optional[Dict[str, str]] = None
+) -> Dict[str, Any]:
     """Sync active LiteLLM models and optional plugin configuration to remote host(s) over SSH."""
     enabled_str = str(get_app_setting("OPENCODE_REMOTE_ENABLED", "false")).lower()
     if enabled_str not in ("true", "1", "yes"):
@@ -459,7 +682,8 @@ def export_remote_opencode_config(models: list, removed_model_names: Optional[se
                 models=models,
                 config_path=config_path,
                 plugin_path=plugin_path,
-                removed_model_names=removed_model_names
+                removed_model_names=removed_model_names,
+                model_group_alias=model_group_alias
             )
             results.append(res)
             if res.get("status") == "success":
@@ -725,17 +949,39 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
     config["model_list"] = new_model_list
     new_model_names = {m.get("model_name") for m in new_model_list if isinstance(m, dict) and m.get("model_name")}
     removed_model_names = old_model_names - new_model_names
+
+    router_settings = config.get("router_settings")
+    if not isinstance(router_settings, dict):
+        router_settings = {}
+    existing_aliases = router_settings.get("model_group_alias") if isinstance(router_settings.get("model_group_alias"), dict) else None
+    model_group_alias = build_auto_model_group_aliases(new_model_list, existing_aliases=existing_aliases)
+    if model_group_alias:
+        router_settings["model_group_alias"] = model_group_alias
+        auto_fallbacks = build_auto_fallbacks(model_group_alias, new_model_names)
+        if auto_fallbacks:
+            router_settings["fallbacks"] = auto_fallbacks
+        config["router_settings"] = router_settings
     
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, sort_keys=False)
         
-    export_opencode_config(config["model_list"], removed_model_names=removed_model_names)
-    remote_opencode_res = await asyncio.to_thread(export_remote_opencode_config, config["model_list"], removed_model_names)
+    export_opencode_config(
+        config["model_list"],
+        removed_model_names=removed_model_names,
+        model_group_alias=model_group_alias
+    )
+    remote_opencode_res = await asyncio.to_thread(
+        export_remote_opencode_config,
+        config["model_list"],
+        removed_model_names,
+        model_group_alias
+    )
     librechat_res = export_librechat_config(config["model_list"])
     return {
         "status": "success",
         "updated_models": len(managed_selected_ids),
         "preserved_custom_models": len(preserved_custom_models),
+        "aliases_count": len(model_group_alias),
         "remote_opencode_sync": remote_opencode_res,
         "librechat_sync": librechat_res
     }

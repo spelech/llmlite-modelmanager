@@ -267,8 +267,9 @@ async def sync_opencode():
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f) or {}
             models = config.get("model_list", [])
-            export_opencode_config(models)
-            remote_res = await asyncio.to_thread(export_remote_opencode_config, models)
+            model_group_alias = (config.get("router_settings") or {}).get("model_group_alias")
+            export_opencode_config(models, model_group_alias=model_group_alias)
+            remote_res = await asyncio.to_thread(export_remote_opencode_config, models, None, model_group_alias)
             return {"status": "success", "exported_models": len(models), "remote_sync": remote_res}
         except Exception as e:
             return {"status": "error", "message": str(e)}

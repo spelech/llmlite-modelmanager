@@ -263,7 +263,7 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
 
     from app.sync import export_opencode_config as real_export_opencode
     with patch("app.sync.get_app_setting", side_effect=lambda key, default=None: str(config_file) if key == "LITELLM_CONFIG" else default), \
-         patch("app.sync.export_opencode_config", side_effect=lambda models, removed_model_names=None: real_export_opencode(models, target_path=str(opencode_file), removed_model_names=removed_model_names)):
+         patch("app.sync.export_opencode_config", side_effect=lambda models, **kw: real_export_opencode(models, target_path=str(opencode_file), **kw)):
         res = await sync_models_internal(["openrouter/z-ai/glm-5.3"])
         assert res["status"] == "success"
         assert res["updated_models"] == 1
@@ -273,12 +273,14 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
         names = [m["model_name"] for m in saved_cfg["model_list"]]
         assert names == ["agy-argon-xhigh", "glm-5.3"]
         assert saved_cfg["model_list"][0]["litellm_params"]["api_base"] == "http://10.0.0.10:8032/v1"
+        assert saved_cfg["router_settings"]["model_group_alias"]["glm"] == "glm-5.3"
 
         oc_data = json.loads(opencode_file.read_text())
         oc_models = oc_data["providers"]["litellm"]["models"]
         assert "opencode-default" in oc_models
-        assert "agy-argon-xhigh" in oc_models
-        assert "glm-5.3" in oc_models
+        assert "glm" in oc_models
+        assert oc_models["glm"]["limit"]["context"] == 1048576
+        assert "glm-5.3" not in oc_models
         assert "old-removed-model" not in oc_models
 
 
