@@ -204,7 +204,7 @@ async function initApp() {
                 const resp = await fetch('/sync', { method: 'POST', body: formData });
                 const result = await resp.json();
                 if (result.status === 'success') {
-                    alert(`✅ Saved & synced ${result.updated_models} models into LiteLLM, OpenCode, and LibreChat configs!`);
+                    alert(`✅ Saved & synced ${result.updated_models} models into LiteLLM and OpenCode configs!`);
                 } else {
                     alert('❌ Sync failed: ' + (result.message || JSON.stringify(result)));
                 }

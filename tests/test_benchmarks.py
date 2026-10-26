@@ -126,8 +126,7 @@ async def test_sync_models_includes_benchmarks(tmp_path):
 
     with patch("app.sync.get_app_setting", return_value=str(config_file)), \
          patch("app.sync.app_state", mock_state), \
-         patch("app.sync.export_opencode_config"), \
-         patch("app.sync.export_librechat_config", return_value={"status": "skipped"}):
+         patch("app.sync.export_opencode_config"):
         
         res = await sync_models_internal(["openrouter/qwen/qwen-2.5-coder-32b"])
         assert res["status"] == "success"

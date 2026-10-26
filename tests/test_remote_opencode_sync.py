@@ -3,14 +3,14 @@ import io
 import json
 from unittest.mock import MagicMock, patch
 
-from app.sync import (
+from app.remote_opencode_sync import (
     get_remote_ssh_connection,
     test_remote_opencode_connection as run_test_remote_opencode_connection,
     export_remote_opencode_config
 )
 
 def test_export_remote_opencode_disabled():
-    with patch("app.sync.get_app_setting", return_value="false"):
+    with patch("app.remote_opencode_sync.get_app_setting", return_value="false"):
         res = export_remote_opencode_config([])
         assert res["status"] == "skipped"
         assert res["reason"] == "remote_sync_disabled"
@@ -23,13 +23,13 @@ def test_export_remote_opencode_missing_config_path():
             return ""
         return default
 
-    with patch("app.sync.get_app_setting", side_effect=mock_get_setting):
+    with patch("app.remote_opencode_sync.get_app_setting", side_effect=mock_get_setting):
         res = export_remote_opencode_config([])
         assert res["status"] == "skipped"
         assert res["reason"] == "missing_remote_config_path"
 
 def test_get_remote_ssh_connection_missing_host_or_user():
-    with patch("app.sync.get_app_setting", return_value=""):
+    with patch("app.remote_opencode_sync.get_app_setting", return_value=""):
         with pytest.raises(ValueError, match="Remote OpenCode Host and User must be configured"):
             get_remote_ssh_connection()
 
@@ -43,7 +43,7 @@ def test_get_remote_ssh_connection_invalid_key():
         )
 
 def test_test_remote_opencode_connection_failure():
-    with patch("app.sync.get_remote_ssh_connection", side_effect=Exception("Connection refused")):
+    with patch("app.remote_opencode_sync.get_remote_ssh_connection", side_effect=Exception("Connection refused")):
         res = run_test_remote_opencode_connection(host="192.168.1.100", user="testuser")
         assert res["status"] == "error"
         assert "Connection refused" in res["message"]
@@ -53,7 +53,7 @@ def test_test_remote_opencode_connection_success():
     mock_sftp = MagicMock()
     mock_sftp.stat.return_value = MagicMock()
 
-    with patch("app.sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
+    with patch("app.remote_opencode_sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
         res = run_test_remote_opencode_connection(
             host="192.168.1.100",
             port=22,
@@ -136,8 +136,8 @@ def test_export_remote_opencode_config_merge_and_atomic_write():
         "OPENCODE_REMOTE_PLUGIN_PATH": "C:\\Users\\test\\repos\\opencode-agy-auth"
     }
 
-    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
-         patch("app.sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
+    with patch("app.remote_opencode_sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
+         patch("app.remote_opencode_sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
 
         models_to_sync = [
             {
@@ -187,7 +187,7 @@ def test_test_remote_opencode_connection_multi_host():
     mock_sftp = MagicMock()
     mock_sftp.stat.return_value = MagicMock()
 
-    with patch("app.sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
+    with patch("app.remote_opencode_sync.get_remote_ssh_connection", return_value=(mock_client, mock_sftp)):
         res = run_test_remote_opencode_connection(
             host="10.0.0.21, 10.0.0.196",
             port=22,
@@ -203,7 +203,7 @@ def test_test_remote_opencode_connection_multi_host_partial():
             raise Exception("Host offline")
         return MagicMock(), MagicMock()
 
-    with patch("app.sync.get_remote_ssh_connection", side_effect=mock_connect):
+    with patch("app.remote_opencode_sync.get_remote_ssh_connection", side_effect=mock_connect):
         res = run_test_remote_opencode_connection(
             host="10.0.0.21, 10.0.0.196",
             port=22,
@@ -224,8 +224,8 @@ def test_export_remote_opencode_config_multi_host_success():
         "OPENCODE_REMOTE_CONFIG_PATH": "C:/Users/test/.config/opencode/opencode.json"
     }
 
-    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
-         patch("app.sync.sync_single_remote_host", mock_sync_single):
+    with patch("app.remote_opencode_sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
+         patch("app.remote_opencode_sync.sync_single_remote_host", mock_sync_single):
 
         models = [{"model_name": "gemini-3.1-pro"}]
         res = export_remote_opencode_config(models)
@@ -247,9 +247,9 @@ def test_export_remote_opencode_config_multi_host_failsafe_partial():
         "OPENCODE_REMOTE_CONFIG_PATH": "C:/Users/test/.config/opencode/opencode.json"
     }
 
-    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
-         patch("app.sync.sync_single_remote_host", side_effect=mock_sync), \
-         patch("app.sync.send_notification") as mock_notify:
+    with patch("app.remote_opencode_sync.get_app_setting", side_effect=lambda k, d=None: settings_map.get(k, d)), \
+         patch("app.remote_opencode_sync.sync_single_remote_host", side_effect=mock_sync), \
+         patch("app.remote_opencode_sync.send_notification") as mock_notify:
 
         models = [{"model_name": "gemini-3.1-pro"}]
         res = export_remote_opencode_config(models)

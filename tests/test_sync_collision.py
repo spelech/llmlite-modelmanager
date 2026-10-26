@@ -207,6 +207,12 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
     opencode_file = tmp_path / "opencode.jsonc"
 
     initial_cfg = {
+        "router_settings": {
+            "model_group_alias": {
+                "opencode-default": "glm-5.3",
+                "glm": "glm-5.3"
+            }
+        },
         "model_list": [
             {
                 "model_name": "agy-argon-xhigh",

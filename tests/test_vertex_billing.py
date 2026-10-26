@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-from app.vertex import fetch_google_billing_info, fetch_vertex_spend, check_vertex_budget
+from app.vertex_billing import fetch_google_billing_info, fetch_vertex_spend, check_vertex_budget
 from app.notifications import notify_vertex_budget_exceeded, notify_gcp_billing_disabled
 
 @pytest.mark.asyncio
@@ -17,8 +17,8 @@ async def test_fetch_google_billing_info_success():
     mock_acct_resp = MagicMock()
     mock_acct_resp.status_code = 403
 
-    with patch("app.vertex.get_google_access_token", return_value="fake-token"), \
-         patch("app.vertex.get_app_setting", return_value="test-proj"), \
+    with patch("app.vertex_billing.get_google_access_token", return_value="fake-token"), \
+         patch("app.vertex_billing.get_app_setting", return_value="test-proj"), \
          patch("httpx.AsyncClient.get") as mock_get:
         mock_get.side_effect = [mock_resp, mock_acct_resp]
 
@@ -31,7 +31,7 @@ async def test_fetch_google_billing_info_success():
 
 @pytest.mark.asyncio
 async def test_fetch_google_billing_info_no_token():
-    with patch("app.vertex.get_google_access_token", return_value=None):
+    with patch("app.vertex_billing.get_google_access_token", return_value=None):
         res = await fetch_google_billing_info()
         assert res["status"] == "error"
         assert "Missing Google token" in res["message"]
@@ -47,7 +47,7 @@ async def test_fetch_vertex_spend_proxy_fallback():
     ]
 
     with patch.dict("sys.modules", {"asyncpg": None}), \
-         patch("app.vertex.get_app_setting") as mock_setting, \
+         patch("app.vertex_billing.get_app_setting") as mock_setting, \
          patch("httpx.AsyncClient.get") as mock_get:
         mock_setting.side_effect = lambda k, d=None: "master-key" if k == "LITELLM_MASTER_KEY" else d
         mock_get.return_value = mock_resp
@@ -74,9 +74,9 @@ async def test_check_vertex_budget_healthy():
         "top_models": []
     }
 
-    with patch("app.vertex.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
-         patch("app.vertex.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
-         patch("app.vertex.get_setting", new_callable=AsyncMock) as mock_get_setting:
+    with patch("app.vertex_billing.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
+         patch("app.vertex_billing.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
+         patch("app.vertex_billing.get_setting", new_callable=AsyncMock) as mock_get_setting:
         mock_billing.return_value = billing_data
         mock_spend.return_value = spend_data
         mock_get_setting.side_effect = lambda k, d=None: "25.0" if k == "VERTEX_MONTHLY_BUDGET" else "true"
@@ -103,10 +103,10 @@ async def test_check_vertex_budget_exceeded_triggers_alert():
         "top_models": [{"model": "gemini-3.8-flash", "spend": 20.0, "requests": 150}]
     }
 
-    with patch("app.vertex.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
-         patch("app.vertex.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
-         patch("app.vertex.get_setting", new_callable=AsyncMock) as mock_get_setting, \
-         patch("app.vertex.set_setting", new_callable=AsyncMock) as mock_set_setting, \
+    with patch("app.vertex_billing.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
+         patch("app.vertex_billing.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
+         patch("app.vertex_billing.get_setting", new_callable=AsyncMock) as mock_get_setting, \
+         patch("app.vertex_billing.set_setting", new_callable=AsyncMock) as mock_set_setting, \
          patch("app.notifications.notify_vertex_budget_exceeded", new_callable=AsyncMock) as mock_notify:
         mock_billing.return_value = billing_data
         mock_spend.return_value = spend_data
@@ -147,10 +147,10 @@ async def test_check_vertex_budget_billing_disabled_triggers_alert():
         "top_models": []
     }
 
-    with patch("app.vertex.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
-         patch("app.vertex.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
-         patch("app.vertex.get_setting", new_callable=AsyncMock) as mock_get_setting, \
-         patch("app.vertex.set_setting", new_callable=AsyncMock) as mock_set_setting, \
+    with patch("app.vertex_billing.fetch_google_billing_info", new_callable=AsyncMock) as mock_billing, \
+         patch("app.vertex_billing.fetch_vertex_spend", new_callable=AsyncMock) as mock_spend, \
+         patch("app.vertex_billing.get_setting", new_callable=AsyncMock) as mock_get_setting, \
+         patch("app.vertex_billing.set_setting", new_callable=AsyncMock) as mock_set_setting, \
          patch("app.notifications.notify_gcp_billing_disabled", new_callable=AsyncMock) as mock_notify:
         mock_billing.return_value = billing_data
         mock_spend.return_value = spend_data
