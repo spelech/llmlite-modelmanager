@@ -44,7 +44,7 @@ async def probe_model_catalog(model_id: str, settings: Dict[str, str]) -> Dict[s
 
         elif model_id.startswith("openrouter/"):
             or_id = model_id.replace("openrouter/", "")
-            url = f"https://openrouter.ai/api/v1/models/{or_id}"
+            url = f"https://openrouter.ai/api/v1/models/{or_id}/endpoints"
             
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url)
