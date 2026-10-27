@@ -290,5 +290,43 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
         assert "old-removed-model" not in oc_models
 
 
+def test_build_model_group_aliases_resolves_clean_family_aliases():
+    from app.aliases import build_model_group_aliases
+    model_list = [
+        {"model_name": "gemini-3.8-flash", "model_info": {"id": "vertex_ai/gemini-3.8-flash"}},
+        {"model_name": "gemini-3.5-flash-lite", "model_info": {"id": "vertex_ai/gemini-3.5-flash-lite"}},
+        {"model_name": "gemini-4-argon", "model_info": {"id": "vertex_ai/gemini-4-argon"}},
+        {"model_name": "glm-5.3", "model_info": {"id": "openrouter/z-ai/glm-5.3"}},
+        {"model_name": "glm-5.3-flash", "model_info": {"id": "openrouter/z-ai/glm-5.3-flash"}},
+        {"model_name": "deepseek-v4-pro", "model_info": {"id": "openrouter/deepseek/deepseek-v4-pro"}},
+        {"model_name": "deepseek-v4.1-flash", "model_info": {"id": "openrouter/deepseek/deepseek-v4.1-flash"}},
+        {"model_name": "qwen3.8-flash", "model_info": {"id": "openrouter/qwen/qwen3.8-flash"}},
+        {"model_name": "qwen3.8-max", "model_info": {"id": "openrouter/qwen/qwen3.8-max"}},
+        {"model_name": "qwen3.8-27b", "model_info": {"id": "openrouter/qwen/qwen3.8-27b"}},
+        {"model_name": "hy4-preview", "model_info": {"id": "openrouter/tencent/hy4-preview"}},
+        {"model_name": "hy3", "model_info": {"id": "openrouter/tencent/hy3"}},
+        {"model_name": "jev-router", "model_info": {"id": "openrouter/typesafe/jev-router"}},
+    ]
+    aliases = build_model_group_aliases(model_list)
+    assert aliases == {
+        "opencode-default": "gemini-3.8-flash",
+        "flash-latest": "gemini-3.8-flash",
+        "opencode-small": "gemini-3.5-flash-lite",
+        "flash-lite-latest": "gemini-3.5-flash-lite",
+        "argon": "gemini-4-argon",
+        "glm": "glm-5.3",
+        "glm-flash": "glm-5.3-flash",
+        "deepseek-pro": "deepseek-v4-pro",
+        "deepseek-flash": "deepseek-v4.1-flash",
+        "qwen-flash": "qwen3.8-flash",
+        "qwen-max": "qwen3.8-max",
+        "qwen-cheap": "qwen3.8-27b",
+        "hy4": "hy4-preview",
+        "hy3": "hy3",
+        "jev-router": "jev-router",
+    }
+
+
+
 
 

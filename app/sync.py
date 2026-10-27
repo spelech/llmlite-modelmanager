@@ -11,6 +11,11 @@ from app.config import (
     app_state,
     get_app_setting,
 )
+from app.aliases import (
+    build_model_group_aliases,
+    build_model_fallbacks,
+    sync_router_settings_to_litellm_db,
+)
 from app.opencode_sync import normalize_opencode_v2_config, export_opencode_config
 from app.remote_opencode_sync import (
     get_remote_ssh_connection,
@@ -172,12 +177,22 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
     removed_model_names = old_model_names - new_model_names
 
     router_settings = config.get("router_settings")
-    model_group_alias = None
-    if isinstance(router_settings, dict) and isinstance(router_settings.get("model_group_alias"), dict):
-        model_group_alias = router_settings.get("model_group_alias")
+    if not isinstance(router_settings, dict):
+        router_settings = {}
+    existing_aliases = router_settings.get("model_group_alias") if isinstance(router_settings.get("model_group_alias"), dict) else None
+    model_group_alias = build_model_group_aliases(new_model_list, existing_aliases=existing_aliases)
+    if model_group_alias:
+        router_settings["model_group_alias"] = model_group_alias
+        auto_fallbacks = build_model_fallbacks(model_group_alias, new_model_names)
+        if auto_fallbacks:
+            router_settings["fallbacks"] = auto_fallbacks
+        config["router_settings"] = router_settings
 
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, sort_keys=False)
+
+    if router_settings:
+        await sync_router_settings_to_litellm_db(router_settings)
 
     export_opencode_config(
         config["model_list"],
