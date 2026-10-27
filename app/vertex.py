@@ -60,45 +60,63 @@ async def fetch_vertex_model_metadata(model_id: str) -> Dict[str, int]:
 
 
 async def fetch_vertex_billing_skus() -> Dict[str, Dict]:
-    """Fetch pricing data for Gemini models from Google Cloud Billing API."""
+    """Fetch standard on-demand Global Text pricing for Gemini models from Google Cloud Billing API."""
     token = get_google_access_token()
     if not token:
         return {}
 
+    exclude_terms = [
+        "High Priority", "Priority", "Provisioned", "Commitment", "Reserved",
+        "Batch", "Off-Peak", "Offpeak", "Flex", "Deferred",
+        "Caching", "Cached", "Cache", "Tuned", "(Long)",
+        "Regional", "Cyber", "CodeMender", "Live",
+    ]
     try:
-        url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus"
+        base_url = "https://cloudbilling.googleapis.com/v1/services/C7E2-9256-1C43/skus?pageSize=5000"
         headers = {"Authorization": f"Bearer {token}"}
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers)
-            if resp.status_code != 200:
-                return {}
+        skus = []
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            page_token = ""
+            while True:
+                url = f"{base_url}&pageToken={page_token}" if page_token else base_url
+                resp = await client.get(url, headers=headers)
+                if resp.status_code != 200:
+                    break
+                data = resp.json()
+                skus.extend(data.get("skus", []))
+                page_token = data.get("nextPageToken", "")
+                if not page_token:
+                    break
 
-            skus = resp.json().get("skus", [])
-            pricing_map = {}
+        pricing_map: Dict[str, Dict[str, float]] = {}
+        for s in skus:
+            desc = s.get("description", "").strip()
+            if "Gemini" not in desc:
+                continue
+            if any(x in desc for x in exclude_terms):
+                continue
+            is_embedding = "Embedding" in desc
+            if not is_embedding and "Text" not in desc:
+                continue
 
-            for s in skus:
-                desc = s.get("description", "")
-                if "Gemini" not in desc:
-                    continue
-                if any(x in desc for x in ["High Priority", "Provisioned", "Commitment", "Reserved"]):
-                    continue
+            name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
+            model_key = name_parts.lower().replace(" ", "-")
 
-                name_parts = desc.split(" - ")[0].split(" GA ")[0].strip()
-                model_key = name_parts.lower().replace(" ", "-")
+            if model_key not in pricing_map:
+                pricing_map[model_key] = {"prompt_1m": 0.0, "completion_1m": 0.0}
 
-                if model_key not in pricing_map:
-                    pricing_map[model_key] = {"prompt_1m": 0.0, "completion_1m": 0.0}
+            tiered_rates = s.get("pricingInfo", [{}])[0].get("pricingExpression", {}).get("tieredRates", [])
+            if not tiered_rates:
+                continue
+            rate = tiered_rates[-1].get("unitPrice", {})
+            price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
 
-                pricing_info = s.get("pricingInfo", [{}])[0].get("pricingExpression", {})
-                rate = pricing_info.get("tieredRates", [{}])[0].get("unitPrice", {})
-                price_usd = float(rate.get("units", 0)) + (float(rate.get("nanos", 0)) / 1e9)
+            if "Input" in desc or is_embedding:
+                pricing_map[model_key]["prompt_1m"] = price_usd * 1_000_000
+            elif "Output" in desc:
+                pricing_map[model_key]["completion_1m"] = price_usd * 1_000_000
 
-                if "Input" in desc:
-                    pricing_map[model_key]["prompt_1m"] = price_usd * 1_000_000
-                elif "Output" in desc:
-                    pricing_map[model_key]["completion_1m"] = price_usd * 1_000_000
-
-            return pricing_map
+        return pricing_map
     except Exception as e:
         print(f"Error fetching Vertex SKUs: {e}")
         return {}

@@ -5,7 +5,12 @@ from typing import Dict, Any, Optional
 
 from app.config import get_app_setting
 from app.database import get_setting, set_setting
-from app.vertex import get_google_access_token
+
+
+def get_google_access_token() -> Optional[str]:
+    """Delegate token generation to app.vertex without top-level circular import."""
+    from app.vertex import get_google_access_token as _get_token
+    return _get_token()
 
 
 async def fetch_google_billing_info() -> Dict[str, Any]:
