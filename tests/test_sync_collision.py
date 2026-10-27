@@ -327,6 +327,39 @@ def test_build_model_group_aliases_resolves_clean_family_aliases():
     }
 
 
+@pytest.mark.asyncio
+async def test_sync_vertex_uses_token_not_character_pricing(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("model_list: []")
+    app_state["or_models"] = []
+    app_state["vx_models"] = [
+        {
+            "id": "vertex_ai/gemini-3.8-flash",
+            "name": "Gemini 3.8 Flash",
+            "brand": "google",
+            "tier": "moderate",
+            "pricing": {"prompt": 0.0000015, "completion": 0.0000075},
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 65536,
+            "capabilities": {"text_in": True, "text_out": True},
+        }
+    ]
+    app_state["local_models"] = []
+    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: str(config_file) if k == "LITELLM_CONFIG" else d), \
+         patch("app.sync.export_opencode_config", return_value=None), \
+         patch("app.sync.export_remote_opencode_config", return_value=[]):
+        await sync_models_internal(["vertex_ai/gemini-3.8-flash"])
+        saved_cfg = yaml.safe_load(config_file.read_text())
+        mi = saved_cfg["model_list"][0]["model_info"]
+        assert mi["input_cost_per_token"] == 0.0000015
+        assert mi["output_cost_per_token"] == 0.0000075
+        assert mi["cache_read_input_token_cost"] == 0.00000015
+        assert mi["output_cost_per_reasoning_token"] == 0.0000075
+        assert "input_cost_per_character" not in mi
+        assert "output_cost_per_character" not in mi
+
+
+
 
 
 

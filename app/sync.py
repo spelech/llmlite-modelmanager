@@ -167,8 +167,10 @@ async def sync_models_internal(selected_ids: List[str]) -> Dict[str, Any]:
                     "vertex_location": get_app_setting("VERTEX_LOCATION", "global"),
                     "vertex_credentials": vertex_creds
                 })
-                entry["model_info"]["input_cost_per_character"] = pricing.get("prompt", 0)
-                entry["model_info"]["output_cost_per_character"] = pricing.get("completion", 0)
+                if in_cost > 0 and "embedding" not in mid.lower():
+                    entry["model_info"]["cache_read_input_token_cost"] = round(in_cost * 0.1, 10)
+                if out_cost > 0 and "embedding" not in mid.lower():
+                    entry["model_info"]["output_cost_per_reasoning_token"] = out_cost
 
         new_model_list.append(entry)
 
