@@ -207,6 +207,12 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
     opencode_file = tmp_path / "opencode.jsonc"
 
     initial_cfg = {
+        "router_settings": {
+            "model_group_alias": {
+                "opencode-default": "glm-5.3",
+                "glm": "glm-5.3"
+            }
+        },
         "model_list": [
             {
                 "model_name": "agy-argon-xhigh",
@@ -263,7 +269,7 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
 
     from app.sync import export_opencode_config as real_export_opencode
     with patch("app.sync.get_app_setting", side_effect=lambda key, default=None: str(config_file) if key == "LITELLM_CONFIG" else default), \
-         patch("app.sync.export_opencode_config", side_effect=lambda models, removed_model_names=None: real_export_opencode(models, target_path=str(opencode_file), removed_model_names=removed_model_names)):
+         patch("app.sync.export_opencode_config", side_effect=lambda models, **kw: real_export_opencode(models, target_path=str(opencode_file), **kw)):
         res = await sync_models_internal(["openrouter/z-ai/glm-5.3"])
         assert res["status"] == "success"
         assert res["updated_models"] == 1
@@ -273,13 +279,53 @@ async def test_sync_preserves_custom_agy_models_and_prunes_removed_from_opencode
         names = [m["model_name"] for m in saved_cfg["model_list"]]
         assert names == ["agy-argon-xhigh", "glm-5.3"]
         assert saved_cfg["model_list"][0]["litellm_params"]["api_base"] == "http://10.0.0.10:8032/v1"
+        assert saved_cfg["router_settings"]["model_group_alias"]["glm"] == "glm-5.3"
 
         oc_data = json.loads(opencode_file.read_text())
         oc_models = oc_data["providers"]["litellm"]["models"]
         assert "opencode-default" in oc_models
-        assert "agy-argon-xhigh" in oc_models
-        assert "glm-5.3" in oc_models
+        assert "glm" in oc_models
+        assert oc_models["glm"]["limit"]["context"] == 1048576
+        assert "glm-5.3" not in oc_models
         assert "old-removed-model" not in oc_models
+
+
+def test_build_model_group_aliases_resolves_clean_family_aliases():
+    from app.aliases import build_model_group_aliases
+    model_list = [
+        {"model_name": "gemini-3.8-flash", "model_info": {"id": "vertex_ai/gemini-3.8-flash"}},
+        {"model_name": "gemini-3.5-flash-lite", "model_info": {"id": "vertex_ai/gemini-3.5-flash-lite"}},
+        {"model_name": "gemini-4-argon", "model_info": {"id": "vertex_ai/gemini-4-argon"}},
+        {"model_name": "glm-5.3", "model_info": {"id": "openrouter/z-ai/glm-5.3"}},
+        {"model_name": "glm-5.3-flash", "model_info": {"id": "openrouter/z-ai/glm-5.3-flash"}},
+        {"model_name": "deepseek-v4-pro", "model_info": {"id": "openrouter/deepseek/deepseek-v4-pro"}},
+        {"model_name": "deepseek-v4.1-flash", "model_info": {"id": "openrouter/deepseek/deepseek-v4.1-flash"}},
+        {"model_name": "qwen3.8-flash", "model_info": {"id": "openrouter/qwen/qwen3.8-flash"}},
+        {"model_name": "qwen3.8-max", "model_info": {"id": "openrouter/qwen/qwen3.8-max"}},
+        {"model_name": "qwen3.8-27b", "model_info": {"id": "openrouter/qwen/qwen3.8-27b"}},
+        {"model_name": "hy4-preview", "model_info": {"id": "openrouter/tencent/hy4-preview"}},
+        {"model_name": "hy3", "model_info": {"id": "openrouter/tencent/hy3"}},
+        {"model_name": "jev-router", "model_info": {"id": "openrouter/typesafe/jev-router"}},
+    ]
+    aliases = build_model_group_aliases(model_list)
+    assert aliases == {
+        "opencode-default": "gemini-3.8-flash",
+        "flash-latest": "gemini-3.8-flash",
+        "opencode-small": "gemini-3.5-flash-lite",
+        "flash-lite-latest": "gemini-3.5-flash-lite",
+        "argon": "gemini-4-argon",
+        "glm": "glm-5.3",
+        "glm-flash": "glm-5.3-flash",
+        "deepseek-pro": "deepseek-v4-pro",
+        "deepseek-flash": "deepseek-v4.1-flash",
+        "qwen-flash": "qwen3.8-flash",
+        "qwen-max": "qwen3.8-max",
+        "qwen-cheap": "qwen3.8-27b",
+        "hy4": "hy4-preview",
+        "hy3": "hy3",
+        "jev-router": "jev-router",
+    }
+
 
 
 

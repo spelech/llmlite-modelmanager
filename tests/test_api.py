@@ -163,23 +163,13 @@ def test_api_health_check():
         assert response.status_code == 200
         assert response.json()["status"] == "success"
 
-def test_api_sync_librechat():
-    with patch("main.export_librechat_config", return_value={"status": "success", "synced": [{"path": "dummy", "models_count": 1}]}), \
-         patch("os.path.exists", return_value=True), \
-         patch("builtins.open", MagicMock()):
-        with patch("yaml.safe_load", return_value={"model_list": [{"model_name": "test"}]}):
-            response = client.post("/api/sync/librechat")
-            assert response.status_code == 200
-            assert response.json()["status"] == "success"
-            assert response.json()["exported_models"] == 1
-
 def test_restart_litellm_success():
     mock_docker = MagicMock()
     mock_container = MagicMock()
     mock_docker.containers.get.return_value = mock_container
     
     with patch("docker.from_env", return_value=mock_docker), \
-         patch("app.sync.verify_litellm_healthy", return_value=True):
+         patch("app.litellm_runtime.verify_litellm_healthy", return_value=True):
         response = client.post("/restart-litellm")
         assert response.status_code == 200
         assert response.json()["status"] == "success"
@@ -191,10 +181,10 @@ def test_restart_litellm_failure_and_auto_revert():
     mock_docker.containers.get.return_value = mock_container
     
     with patch("docker.from_env", return_value=mock_docker), \
-         patch("app.sync.verify_litellm_healthy", return_value=False), \
+         patch("app.litellm_runtime.verify_litellm_healthy", return_value=False), \
          patch("os.path.exists", return_value=True), \
          patch("shutil.copy2") as mock_copy, \
-         patch("app.sync.send_notification", return_value=None):
+         patch("app.litellm_runtime.send_notification", return_value=None):
         response = client.post("/restart-litellm")
         assert response.status_code == 200
         assert response.json()["status"] == "error"

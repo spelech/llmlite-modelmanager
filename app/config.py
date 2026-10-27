@@ -5,7 +5,6 @@ from app.database import get_all_settings
 # --- Default Paths & Keys (Internal Fallbacks) ---
 DEFAULT_CONFIG_PATH = "/app/config/config.yaml"
 DEFAULT_VERTEX_CREDS = "/app/vertex_credentials.json"
-DEFAULT_LIBRECHAT_CONFIG_PATHS: List[str] = []
 PROXY_URL = "http://litellm:4000/v1/chat/completions"
 
 CACHE_FILE = "/app/config/verified_models_cache.json"
@@ -32,13 +31,6 @@ app_state: Dict[str, Any] = {
 def get_app_setting(key: str, default=None):
     """Helper to get setting from app_state or environment."""
     return app_state["settings"].get(key) or os.environ.get(key) or default
-
-def get_librechat_config_paths() -> List[str]:
-    """Retrieve list of LibreChat configuration file paths to sync."""
-    paths_str = get_app_setting("LIBRECHAT_CONFIG_PATHS")
-    if paths_str:
-        return [p.strip() for p in paths_str.split(",") if p.strip()]
-    return DEFAULT_LIBRECHAT_CONFIG_PATHS
 
 async def refresh_app_settings():
     """Load settings from DB into memory."""
