@@ -142,6 +142,15 @@ async def fetch_vertex_publisher_models() -> List[Dict[str, Any]]:
         )
 
         discovered = []
+        # Pre-seed canonical batch-safe embedding model (Google GenAI SDK models.list() omits publishers/google/models/gemini-embedding-001)
+        discovered.append({
+            "id": "gemini-embedding-001",
+            "name": "Gemini Embedding 001",
+            "description": "Vertex AI batch-safe OpenAI-compatible text embedding model (batchEmbedContents)",
+            "input_token_limit": 1000000,
+            "output_token_limit": 65536,
+            "supported_methods": ["embedContent"]
+        })
         for model in client.models.list():
             mid = model.name.split("/")[-1]
             if "gemini" in mid.lower() or "imagen" in mid.lower():

@@ -359,6 +359,55 @@ async def test_sync_vertex_uses_token_not_character_pricing(tmp_path):
         assert "output_cost_per_character" not in mi
 
 
+@pytest.mark.asyncio
+async def test_sync_qwen_coder_alias_and_embedding_model(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("model_list: []")
+    app_state["or_models"] = [
+        {
+            "id": "openrouter/qwen/qwen3-coder-next",
+            "name": "Qwen 3 Coder Next",
+            "brand": "qwen",
+            "tier": "cheap",
+            "pricing": {"prompt": 0.00000012, "completion": 0.0000008},
+            "max_input_tokens": 128000,
+            "max_output_tokens": 8192,
+            "capabilities": {"text_in": True, "text_out": True},
+        }
+    ]
+    app_state["vx_models"] = [
+        {
+            "id": "vertex_ai/gemini-embedding-001",
+            "name": "Gemini Embedding 001",
+            "brand": "google",
+            "tier": "cheap",
+            "pricing": {"prompt": 0.0000002, "completion": 0.0},
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 65536,
+            "capabilities": {"text_in": True, "text_out": False},
+        }
+    ]
+    app_state["local_models"] = []
+    with patch("app.sync.get_app_setting", side_effect=lambda k, d=None: str(config_file) if k == "LITELLM_CONFIG" else d), \
+         patch("app.sync.export_opencode_config", return_value=None), \
+         patch("app.sync.export_remote_opencode_config", return_value=[]):
+        res = await sync_models_internal([
+            "openrouter/qwen/qwen3-coder-next",
+            "vertex_ai/gemini-embedding-001"
+        ])
+        assert res["status"] == "success"
+        saved_cfg = yaml.safe_load(config_file.read_text())
+        aliases = saved_cfg.get("router_settings", {}).get("model_group_alias", {})
+        assert aliases.get("qwen-coder") == "qwen3-coder-next"
+        
+        # Verify embedding model is preserved in model_list
+        model_names = [m["model_name"] for m in saved_cfg["model_list"]]
+        assert "gemini-embedding-001" in model_names
+        embed_entry = next(m for m in saved_cfg["model_list"] if m["model_name"] == "gemini-embedding-001")
+        assert embed_entry["litellm_params"]["model"] == "vertex_ai/gemini-embedding-001"
+
+
+
 
 
 

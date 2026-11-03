@@ -88,6 +88,10 @@ def build_model_group_aliases(
         lambda name, mid: mid.startswith("openrouter/qwen/qwen")
         and any(mid.endswith(s) for s in ("-27b", "-32b", "-30b-a3b"))
     )
+    best_qwen_coder = _pick_best(
+        lambda name, mid: mid.startswith("openrouter/qwen/qwen")
+        and any(x in mid for x in ("-coder", "coder"))
+    )
     best_hy4 = _pick_best(
         lambda name, mid: mid.startswith("openrouter/tencent/hy4")
     )
@@ -120,6 +124,8 @@ def build_model_group_aliases(
         aliases["qwen-max"] = best_qwen_max
     if best_qwen_cheap:
         aliases["qwen-cheap"] = best_qwen_cheap
+    if best_qwen_coder:
+        aliases["qwen-coder"] = best_qwen_coder
     if best_hy4:
         aliases["hy4"] = best_hy4
     if best_hy3:
