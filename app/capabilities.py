@@ -27,6 +27,7 @@ FALLBACK_PRICING = {
     "gemini-1.5-flash": {"prompt_1m": 0.075, "completion_1m": 0.30},
     "gemini-1.5-pro": {"prompt_1m": 1.25, "completion_1m": 5.00},
     "gemini-embedding": {"prompt_1m": 0.20, "completion_1m": 0.0},
+    "gemini-embedding-001": {"prompt_1m": 0.20, "completion_1m": 0.0},
     "gemini-embedding-2": {"prompt_1m": 0.20, "completion_1m": 0.0},
 }
 
