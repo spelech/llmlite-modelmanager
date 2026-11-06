@@ -37,3 +37,31 @@ def test_embedding_capabilities():
     assert caps["text_in"] is True
     assert caps["text_out"] is False
     assert caps["function_calling"] is False
+
+def test_openrouter_architecture_modalities():
+    # Model that has architecture saying text-only even if name has 'pro' or 'flash'
+    arch_text_only = {
+        "modality": "text->text",
+        "input_modalities": ["text"],
+        "output_modalities": ["text"]
+    }
+    caps = extract_capabilities(
+        description="A powerful pro model",
+        model_id="deepseek/deepseek-v4-pro",
+        architecture=arch_text_only
+    )
+    assert caps["image_in"] is False
+    assert caps["text_in"] is True
+
+    # Multimodal model
+    arch_multimodal = {
+        "modality": "text+image->text",
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"]
+    }
+    caps_mm = extract_capabilities(
+        description="Vision flash model",
+        model_id="deepseek/deepseek-v4.1-flash",
+        architecture=arch_multimodal
+    )
+    assert caps_mm["image_in"] is True

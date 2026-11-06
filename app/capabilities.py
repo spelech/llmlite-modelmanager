@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # Official Vertex AI per-1M token pricing (Google Cloud Billing SKU catalog)
 FALLBACK_PRICING = {
@@ -50,13 +50,58 @@ GEMINI_SPECS = {
     "gemini-1.5-pro": {"ctx": 2000000, "out": 8192},
 }
 
-def extract_capabilities(description: str = "", model_id: str = "", supported_methods: Optional[List[str]] = None) -> Dict[str, bool]:
+def extract_capabilities(
+    description: str = "",
+    model_id: str = "",
+    supported_methods: Optional[List[str]] = None,
+    architecture: Optional[Dict[str, Any]] = None,
+) -> Dict[str, bool]:
     """
     Capability extraction for input/output modalities and features.
     Accurately tags multimodal Gemini models, vision LLMs, code/tool agents, and media generators.
     """
     desc_low = (description or "").lower()
     mid_low = (model_id or "").lower()
+
+    # If authoritative architecture modality information is provided (e.g. from OpenRouter API)
+    if architecture and isinstance(architecture, dict):
+        input_modalities = architecture.get("input_modalities") or []
+        output_modalities = architecture.get("output_modalities") or []
+        modality_str = str(architecture.get("modality", "")).lower()
+
+        has_image_in = "image" in input_modalities or "image" in modality_str.split("->")[0]
+        has_audio_in = "audio" in input_modalities or "audio" in modality_str.split("->")[0]
+        has_video_in = "video" in input_modalities or "video" in modality_str.split("->")[0]
+
+        has_image_out = "image" in output_modalities or (
+            "->" in modality_str and "image" in modality_str.split("->")[1]
+        )
+        has_audio_out = "audio" in output_modalities or (
+            "->" in modality_str and "audio" in modality_str.split("->")[1]
+        )
+        has_video_out = "video" in output_modalities or (
+            "->" in modality_str and "video" in modality_str.split("->")[1]
+        )
+
+        is_claude = "claude" in mid_low
+        is_openai = any(k in mid_low for k in ["gpt-4", "gpt-5", "o1", "o3", "o4", "chatgpt"])
+
+        def arch_match(keywords):
+            return any(k in desc_low or k in mid_low for k in keywords)
+
+        return {
+            "text_in": True,
+            "text_out": True,
+            "image_in": has_image_in,
+            "image_out": has_image_out,
+            "audio_in": has_audio_in,
+            "audio_out": has_audio_out,
+            "video_in": has_video_in,
+            "video_out": has_video_out,
+            "pdf_in": is_claude or arch_match(["pdf", "document", "multimodal"]),
+            "function_calling": is_claude or is_openai or arch_match(["function", "tool", "agent", "instruct", "chat", "command-r", "qwen", "mistral", "deepseek"]),
+            "streaming": True,
+        }
 
     def match(keywords):
         return any(k in desc_low or k in mid_low for k in keywords)
