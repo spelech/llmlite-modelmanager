@@ -48,7 +48,11 @@ async def get_openrouter_models() -> List[Dict]:
                     "pricing": pricing_dict,
                     "max_input_tokens": m.get("context_length", 0),
                     "max_output_tokens": m.get("top_provider", {}).get("max_completion_tokens", 0),
-                    "capabilities": extract_capabilities(m.get("description", ""), m["id"]),
+                    "capabilities": extract_capabilities(
+                        m.get("description", ""),
+                        m["id"],
+                        architecture=m.get("architecture"),
+                    ),
                     "benchmarks": extract_benchmarks(m.get("benchmarks"))
                 }
                 model_item["tier"] = classify_model_tier(model_item)
